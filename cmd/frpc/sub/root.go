@@ -45,7 +45,7 @@ var (
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "./frpc.ini", "config file of frpc")
 	rootCmd.PersistentFlags().StringVarP(&cfgDir, "config_dir", "", "", "config directory, run one frpc service for each file in config directory")
-	rootCmd.PersistentFlags().BoolVarP(&showVersion, "version", "v", false, "version of frpc")
+	rootCmd.PersistentFlags().BoolVarP(&showVersion, "version", "v", true, "version of frpc")
 	rootCmd.PersistentFlags().BoolVarP(&strictConfigMode, "strict_config", "", true, "strict config parsing mode, unknown fields will cause an errors")
 }
 
@@ -54,8 +54,8 @@ var rootCmd = &cobra.Command{
 	Short: "frpc is the client of frp (https://github.com/fatedier/frp)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if showVersion {
-			fmt.Println(version.Full())
-			return nil
+			fmt.Println(" [企鹅frp-client]: 你正在使用的版本是基于" + version.Full() + "的特制版")
+			fmt.Println("  _____        _               ______            \n |  __ \\      | |             |  ____|           \n | |__) |___  | |  __ _  _ __ | |__  _ __  _ __  \n |  ___// _ \\ | | / _` || '__||  __|| '__|| '_ \\ \n | |   | (_) || || (_| || |   | |   | |   | |_) |\n |_|    \\___/ |_| \\__,_||_|   |_|   |_|   | .__/ \n                                          | |    \n                                          |_|    ")
 		}
 
 		// If cfgDir is not empty, run multiple frpc service for each config file in cfgDir.

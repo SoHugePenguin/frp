@@ -15,6 +15,8 @@
 package legacy
 
 import (
+	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/samber/lo"
@@ -59,10 +61,16 @@ func Convert_ClientCommonConf_To_v1(conf *ClientCommonConf) *v1.ClientCommonConf
 	out.Transport.QUIC.MaxIncomingStreams = conf.QUICMaxIncomingStreams
 	out.Transport.TLS.Enable = lo.ToPtr(conf.TLSEnable)
 	out.Transport.TLS.DisableCustomTLSFirstByte = lo.ToPtr(conf.DisableCustomTLSFirstByte)
-	out.Transport.TLS.TLSConfig.CertFile = conf.TLSCertFile
-	out.Transport.TLS.TLSConfig.KeyFile = conf.TLSKeyFile
-	out.Transport.TLS.TLSConfig.TrustedCaFile = conf.TLSTrustedCaFile
-	out.Transport.TLS.TLSConfig.ServerName = conf.TLSServerName
+
+	var pathErr error
+	out.Transport.TLS.TLSConfig.CertFile, pathErr = filepath.Abs(conf.TLSCertFile)
+	out.Transport.TLS.TLSConfig.KeyFile, pathErr = filepath.Abs(conf.TLSKeyFile)
+	out.Transport.TLS.TLSConfig.TrustedCaFile, pathErr = filepath.Abs(conf.TLSTrustedCaFile)
+	out.Transport.TLS.TLSConfig.ServerName, pathErr = filepath.Abs(conf.TLSServerName)
+	if pathErr != nil {
+		fmt.Print(pathErr.Error())
+		panic(pathErr)
+	}
 
 	out.Log.To = conf.LogFile
 	out.Log.Level = conf.LogLevel

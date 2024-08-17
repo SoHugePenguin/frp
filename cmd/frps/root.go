@@ -39,7 +39,7 @@ var (
 
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file of frps")
-	rootCmd.PersistentFlags().BoolVarP(&showVersion, "version", "v", false, "version of frps")
+	rootCmd.PersistentFlags().BoolVarP(&showVersion, "version", "v", true, "version of frps")
 	rootCmd.PersistentFlags().BoolVarP(&strictConfigMode, "strict_config", "", true, "strict config parsing mode, unknown fields will cause errors")
 
 	config.RegisterServerConfigFlags(rootCmd, &serverCfg)
@@ -50,8 +50,8 @@ var rootCmd = &cobra.Command{
 	Short: "frps is the server of frp (https://github.com/fatedier/frp)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if showVersion {
-			fmt.Println(version.Full())
-			return nil
+			fmt.Println(" [企鹅frp-server]: 你正在使用的版本是基于" + version.Full() + "的特制版")
+			fmt.Println("  _____        _               ______            \n |  __ \\      | |             |  ____|           \n | |__) |___  | |  __ _  _ __ | |__  _ __  _ __  \n |  ___// _ \\ | | / _` || '__||  __|| '__|| '_ \\ \n | |   | (_) || || (_| || |   | |   | |   | |_) |\n |_|    \\___/ |_| \\__,_||_|   |_|   |_|   | .__/ \n                                          | |    \n                                          |_|    ")
 		}
 
 		var (

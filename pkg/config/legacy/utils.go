@@ -18,6 +18,7 @@ import (
 	"strings"
 )
 
+// penguin: 你他妈的你告诉我为什么要这样搞，神经病是不是，你非要把用户限制死是吧？？？真出生
 func GetMapWithoutPrefix(set map[string]string, prefix string) map[string]string {
 	m := make(map[string]string)
 

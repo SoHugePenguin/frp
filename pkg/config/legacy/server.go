@@ -268,7 +268,6 @@ func UnmarshalServerConfFromIni(source interface{}) (ServerCommonConf, error) {
 
 func loadHTTPPluginOpt(section *ini.Section) (*HTTPPluginOptions, error) {
 	name := strings.TrimSpace(strings.TrimPrefix(section.Name(), "plugin."))
-
 	opt := &HTTPPluginOptions{}
 	err := section.MapTo(opt)
 	if err != nil {
