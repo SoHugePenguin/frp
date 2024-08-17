@@ -223,7 +223,7 @@ func LoadClientConfig(path string, strict bool) (
 		cliCfg.Transport.TLS.CertFile, _ = filepath.Abs(cliCfg.Transport.TLS.CertFile)
 		cliCfg.Transport.TLS.KeyFile, _ = filepath.Abs(cliCfg.Transport.TLS.KeyFile)
 		fmt.Println("[企鹅]: loading ca证书位置-> " + cliCfg.Transport.TLS.CertFile)
-		fmt.Println("[企鹅]: loading ca密钥位置-> " + cliCfg.Transport.TLS.CertFile)
+		fmt.Println("[企鹅]: loading ca密钥位置-> " + cliCfg.Transport.TLS.KeyFile)
 
 		for _, c := range allCfg.Proxies {
 			proxyCfgs = append(proxyCfgs, c.ProxyConfigurer)
