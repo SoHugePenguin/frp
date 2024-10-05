@@ -45,7 +45,9 @@ func (c *TunnelClient) Start() error {
 	if err != nil {
 		return err
 	}
-	defer ch.Close()
+	defer func() {
+		_ = ch.Close()
+	}()
 	go ssh.DiscardRequests(req)
 
 	type command struct {
@@ -75,15 +77,21 @@ func (c *TunnelClient) serveListener() {
 		if err != nil {
 			return
 		}
-		go c.hanldeConn(conn)
+		go c.handleConn(conn)
 	}
 }
 
-func (c *TunnelClient) hanldeConn(conn net.Conn) {
-	defer conn.Close()
+func (c *TunnelClient) handleConn(conn net.Conn) {
+	defer func() {
+		_ = conn.Close()
+	}()
 	local, err := net.Dial("tcp", c.localAddr)
 	if err != nil {
 		return
 	}
-	_, _, _ = libio.Join(local, conn)
+	var inCount int64 = 999
+	var outCount int64 = 999
+	var inTotalCanUse int64 = 99999999999999999
+	var outTotalCanUse int64 = 99999999999999999
+	_ = libio.Join(local, conn, &inCount, &outCount, &inTotalCanUse, &outTotalCanUse)
 }
