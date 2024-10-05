@@ -17,8 +17,8 @@ package auth
 import (
 	"fmt"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
 )
 
 type Setter interface {

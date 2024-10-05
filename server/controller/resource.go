@@ -15,16 +15,16 @@
 package controller
 
 import (
-	"github.com/fatedier/frp/pkg/nathole"
-	plugin "github.com/fatedier/frp/pkg/plugin/server"
-	"github.com/fatedier/frp/pkg/util/tcpmux"
-	"github.com/fatedier/frp/pkg/util/vhost"
-	"github.com/fatedier/frp/server/group"
-	"github.com/fatedier/frp/server/ports"
-	"github.com/fatedier/frp/server/visitor"
+	"github.com/SoHugePenguin/frp/pkg/nathole"
+	plugin "github.com/SoHugePenguin/frp/pkg/plugin/server"
+	"github.com/SoHugePenguin/frp/pkg/util/tcpmux"
+	"github.com/SoHugePenguin/frp/pkg/util/vhost"
+	"github.com/SoHugePenguin/frp/server/group"
+	"github.com/SoHugePenguin/frp/server/ports"
+	"github.com/SoHugePenguin/frp/server/visitor"
 )
 
-// All resource managers and controllers
+// ResourceController All resource managers and controllers
 type ResourceController struct {
 	// Manage all visitor listeners
 	VisitorManager *visitor.Manager

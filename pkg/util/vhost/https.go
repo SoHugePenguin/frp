@@ -20,7 +20,7 @@ import (
 	"net"
 	"time"
 
-	libnet "github.com/fatedier/golib/net"
+	libnet "github.com/SoHugePenguin/golib/net"
 )
 
 type HTTPSMuxer struct {
@@ -73,7 +73,7 @@ func readClientHello(reader io.Reader) (*tls.ClientHelloInfo, error) {
 func vhostFailed(c net.Conn) {
 	// Alert with alertUnrecognizedName
 	_ = tls.Server(c, &tls.Config{}).Handshake()
-	c.Close()
+	_ = c.Close()
 }
 
 type readOnlyConn struct {

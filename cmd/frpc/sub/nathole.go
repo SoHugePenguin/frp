@@ -20,9 +20,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fatedier/frp/pkg/config"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/nathole"
+	"github.com/SoHugePenguin/frp/pkg/config"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/nathole"
 )
 
 var (

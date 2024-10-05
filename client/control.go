@@ -20,15 +20,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fatedier/frp/client/proxy"
-	"github.com/fatedier/frp/client/visitor"
-	"github.com/fatedier/frp/pkg/auth"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/transport"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/wait"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/client/proxy"
+	"github.com/SoHugePenguin/frp/client/visitor"
+	"github.com/SoHugePenguin/frp/pkg/auth"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/wait"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
 type SessionContext struct {
@@ -104,7 +104,7 @@ func NewControl(ctx context.Context, sessionCtx *SessionContext) (*Control, erro
 	return ctl, nil
 }
 
-func (ctl *Control) Run(proxyCfgs []v1.ProxyConfigurer, visitorCfgs []v1.VisitorConfigurer) {
+func (ctl *Control) Run(proxyCfgs []v1.ProxyConfigure, visitorCfgs []v1.VisitorConfigurer) {
 	go ctl.worker()
 
 	// start all proxies
@@ -131,24 +131,24 @@ func (ctl *Control) handleReqWorkConn(_ msg.Message) {
 	}
 	if err = ctl.sessionCtx.AuthSetter.SetNewWorkConn(m); err != nil {
 		xl.Warnf("error during NewWorkConn authentication: %v", err)
-		workConn.Close()
+		_ = workConn.Close()
 		return
 	}
 	if err = msg.WriteMsg(workConn, m); err != nil {
 		xl.Warnf("work connection write to server error: %v", err)
-		workConn.Close()
+		_ = workConn.Close()
 		return
 	}
 
 	var startMsg msg.StartWorkConn
 	if err = msg.ReadMsgInto(workConn, &startMsg); err != nil {
 		xl.Tracef("work connection closed before response StartWorkConn message: %v", err)
-		workConn.Close()
+		_ = workConn.Close()
 		return
 	}
 	if startMsg.Error != "" {
 		xl.Errorf("StartWorkConn contains error: %s", startMsg.Error)
-		workConn.Close()
+		_ = workConn.Close()
 		return
 	}
 
@@ -195,8 +195,8 @@ func (ctl *Control) handlePong(m msg.Message) {
 
 // closeSession closes the control connection.
 func (ctl *Control) closeSession() {
-	ctl.sessionCtx.Conn.Close()
-	ctl.sessionCtx.Connector.Close()
+	_ = ctl.sessionCtx.Conn.Close()
+	_ = ctl.sessionCtx.Connector.Close()
 }
 
 func (ctl *Control) Close() error {
@@ -283,7 +283,7 @@ func (ctl *Control) worker() {
 	close(ctl.doneCh)
 }
 
-func (ctl *Control) UpdateAllConfigurer(proxyCfgs []v1.ProxyConfigurer, visitorCfgs []v1.VisitorConfigurer) error {
+func (ctl *Control) UpdateAllConfigurer(proxyCfgs []v1.ProxyConfigure, visitorCfgs []v1.VisitorConfigurer) error {
 	ctl.vm.UpdateAll(visitorCfgs)
 	ctl.pm.UpdateAll(proxyCfgs)
 	return nil

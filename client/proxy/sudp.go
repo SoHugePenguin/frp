@@ -24,14 +24,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fatedier/golib/errors"
-	libio "github.com/fatedier/golib/io"
+	"github.com/SoHugePenguin/golib/errors"
+	libio "github.com/SoHugePenguin/golib/io"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/proto/udp"
-	"github.com/fatedier/frp/pkg/util/limit"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/proto/udp"
+	"github.com/SoHugePenguin/frp/pkg/util/limit"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
 )
 
 func init() {
@@ -48,7 +48,7 @@ type SUDPProxy struct {
 	closeCh chan struct{}
 }
 
-func NewSUDPProxy(baseProxy *BaseProxy, cfg v1.ProxyConfigurer) Proxy {
+func NewSUDPProxy(baseProxy *BaseProxy, cfg v1.ProxyConfigure) Proxy {
 	unwrapped, ok := cfg.(*v1.SUDPProxyConfig)
 	if !ok {
 		return nil

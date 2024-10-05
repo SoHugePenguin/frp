@@ -21,10 +21,10 @@ import (
 	"slices"
 	"sync"
 
-	libio "github.com/fatedier/golib/io"
+	libio "github.com/SoHugePenguin/golib/io"
 
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/util"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
 )
 
 type listenerBundle struct {

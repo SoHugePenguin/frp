@@ -8,12 +8,12 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 
-	httppkg "github.com/fatedier/frp/pkg/util/http"
-	"github.com/fatedier/frp/test/e2e/framework"
-	"github.com/fatedier/frp/test/e2e/framework/consts"
-	"github.com/fatedier/frp/test/e2e/mock/server/streamserver"
-	"github.com/fatedier/frp/test/e2e/pkg/request"
-	"github.com/fatedier/frp/test/e2e/pkg/rpc"
+	httppkg "github.com/SoHugePenguin/frp/pkg/util/http"
+	"github.com/SoHugePenguin/frp/test/e2e/framework"
+	"github.com/SoHugePenguin/frp/test/e2e/framework/consts"
+	"github.com/SoHugePenguin/frp/test/e2e/mock/server/streamserver"
+	"github.com/SoHugePenguin/frp/test/e2e/pkg/request"
+	"github.com/SoHugePenguin/frp/test/e2e/pkg/rpc"
 )
 
 var _ = ginkgo.Describe("[Feature: TCPMUX httpconnect]", func() {

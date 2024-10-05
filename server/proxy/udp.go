@@ -16,22 +16,25 @@ package proxy
 
 import (
 	"context"
+	errors2 "errors"
 	"fmt"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
 	"io"
 	"net"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
-	"github.com/fatedier/golib/errors"
-	libio "github.com/fatedier/golib/io"
+	"github.com/SoHugePenguin/golib/errors"
+	libio "github.com/SoHugePenguin/golib/io"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/proto/udp"
-	"github.com/fatedier/frp/pkg/util/limit"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/server/metrics"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/proto/udp"
+	"github.com/SoHugePenguin/frp/pkg/util/limit"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/server/metrics"
 )
 
 func init() {
@@ -64,7 +67,7 @@ type UDPProxy struct {
 }
 
 func NewUDPProxy(baseProxy *BaseProxy) Proxy {
-	unwrapped, ok := baseProxy.GetConfigurer().(*v1.UDPProxyConfig)
+	unwrapped, ok := baseProxy.GetConfigure().(*v1.UDPProxyConfig)
 	if !ok {
 		return nil
 	}
@@ -100,11 +103,11 @@ func (pxy *UDPProxy) Run() (remoteAddr string, err error) {
 		xl.Warnf("listen udp port error: %v", err)
 		return
 	}
-	xl.Infof("udp proxy listen port [%d]", pxy.cfg.RemotePort)
+	//xl.Infof("udp proxy listen port [%d]", pxy.cfg.RemotePort)
 
 	pxy.udpConn = udpConn
-	pxy.sendCh = make(chan *msg.UDPPacket, 1024)
-	pxy.readCh = make(chan *msg.UDPPacket, 1024)
+	pxy.sendCh = make(chan *msg.UDPPacket, 4096)
+	pxy.readCh = make(chan *msg.UDPPacket, 4096)
 	pxy.checkCloseCh = make(chan int)
 
 	// read message from workConn, if it returns any error, notify proxy to start a new workConn
@@ -137,14 +140,23 @@ func (pxy *UDPProxy) Run() (remoteAddr string, err error) {
 			case *msg.UDPPacket:
 				if errRet := errors.PanicToError(func() {
 					xl.Tracef("get udp message from workConn: %s", m.Content)
+
+					for *pxy.maxOutRate <= 0 {
+						time.Sleep(100 * time.Millisecond)
+					}
+
 					pxy.readCh <- m
+					//xl.Infof("%d , %+v", int64(len(m.Content)), m)
+
+					// 限速+统计速率
+					*pxy.maxOutRate -= int64(len(m.Content))
 					metrics.Server.AddTrafficOut(
 						pxy.GetName(),
-						pxy.GetConfigurer().GetBaseConfig().Type,
+						pxy.GetConfigure().GetBaseConfig().Type,
 						int64(len(m.Content)),
 					)
 				}); errRet != nil {
-					conn.Close()
+					_ = conn.Close()
 					xl.Infof("reader goroutine for udp work connection closed")
 					return
 				}
@@ -162,15 +174,23 @@ func (pxy *UDPProxy) Run() (remoteAddr string, err error) {
 					xl.Infof("sender goroutine for udp work connection closed")
 					return
 				}
+
+				for *pxy.maxInRate <= 0 {
+					time.Sleep(100 * time.Millisecond)
+				}
+
 				if errRet = msg.WriteMsg(conn, udpMsg); errRet != nil {
 					xl.Infof("sender goroutine for udp work connection closed: %v", errRet)
-					conn.Close()
+					_ = conn.Close()
 					return
 				}
 				xl.Tracef("send message to udp workConn: %s", udpMsg.Content)
+
+				// 限速+统计速率
+				*pxy.maxInRate -= int64(len(udpMsg.Content))
 				metrics.Server.AddTrafficIn(
 					pxy.GetName(),
-					pxy.GetConfigurer().GetBaseConfig().Type,
+					pxy.GetConfigure().GetBaseConfig().Type,
 					int64(len(udpMsg.Content)),
 				)
 				continue
@@ -200,7 +220,7 @@ func (pxy *UDPProxy) Run() (remoteAddr string, err error) {
 			}
 			// close the old workConn and replace it with a new one
 			if pxy.workConn != nil {
-				pxy.workConn.Close()
+				_ = pxy.workConn.Close()
 			}
 
 			var rwc io.ReadWriteCloser = workConn
@@ -208,7 +228,7 @@ func (pxy *UDPProxy) Run() (remoteAddr string, err error) {
 				rwc, err = libio.WithEncryption(rwc, []byte(pxy.serverCfg.Auth.Token))
 				if err != nil {
 					xl.Errorf("create encryption stream error: %v", err)
-					workConn.Close()
+					_ = workConn.Close()
 					continue
 				}
 			}
@@ -239,7 +259,13 @@ func (pxy *UDPProxy) Run() (remoteAddr string, err error) {
 	// Response will be wrapped to be forwarded by work connection to server.
 	// Close readCh and sendCh at the end.
 	go func() {
-		udp.ForwardUserConn(udpConn, pxy.readCh, pxy.sendCh, int(pxy.serverCfg.UDPPacketSize))
+		err = udp.ForwardUserConn(udpConn, pxy.readCh, pxy.sendCh, int(pxy.serverCfg.UDPPacketSize))
+		var opErr *net.OpError
+		if errors2.As(err, &opErr) && strings.Contains(opErr.Error(), "larger") {
+			_ = msg.WriteRealtimeMsgByConfig(pxy.serverCfg.RunIdList, pxy.ctlRunId,
+				fmt.Sprintf("UDP数据包太长了！需要在 %d 以内", pxy.serverCfg.UDPPacketSize), 403)
+			log.Errorf("%s", err.Error())
+		}
 		pxy.Close()
 	}()
 	return remoteAddr, nil
@@ -253,9 +279,9 @@ func (pxy *UDPProxy) Close() {
 
 		pxy.BaseProxy.Close()
 		if pxy.workConn != nil {
-			pxy.workConn.Close()
+			_ = pxy.workConn.Close()
 		}
-		pxy.udpConn.Close()
+		_ = pxy.udpConn.Close()
 
 		// all channels only closed here
 		close(pxy.checkCloseCh)

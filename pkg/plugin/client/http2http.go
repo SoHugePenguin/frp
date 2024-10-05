@@ -24,11 +24,11 @@ import (
 	"net/http"
 	"net/http/httputil"
 
-	"github.com/fatedier/golib/pool"
+	"github.com/SoHugePenguin/golib/pool"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/util/log"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
 )
 
 func init() {

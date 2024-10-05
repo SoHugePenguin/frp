@@ -22,7 +22,7 @@ import (
 
 	"github.com/samber/lo"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
 )
 
 func ValidateClientCommonConfig(c *v1.ClientCommonConfig) (Warning, error) {
@@ -81,7 +81,7 @@ func ValidateClientCommonConfig(c *v1.ClientCommonConfig) (Warning, error) {
 	return warnings, errs
 }
 
-func ValidateAllClientConfig(c *v1.ClientCommonConfig, proxyCfgs []v1.ProxyConfigurer, visitorCfgs []v1.VisitorConfigurer) (Warning, error) {
+func ValidateAllClientConfig(c *v1.ClientCommonConfig, proxyCfgs []v1.ProxyConfigure, visitorCfgs []v1.VisitorConfigurer) (Warning, error) {
 	var warnings Warning
 	if c != nil {
 		warning, err := ValidateClientCommonConfig(c)

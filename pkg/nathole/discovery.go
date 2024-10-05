@@ -29,14 +29,16 @@ type Message struct {
 	Addr string
 }
 
-// If the localAddr is empty, it will listen on a random port.
+// Discover If the localAddr is empty, it will listen on a random port.
 func Discover(stunServers []string, localAddr string) ([]string, net.Addr, error) {
 	// create a discoverConn and get response from messageChan
 	discoverConn, err := listen(localAddr)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer discoverConn.Close()
+	defer func() {
+		_ = discoverConn.Close()
+	}()
 
 	go discoverConn.readLoop()
 

@@ -24,9 +24,9 @@ import (
 	"github.com/rodaine/table"
 	"github.com/spf13/cobra"
 
-	"github.com/fatedier/frp/pkg/config"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	clientsdk "github.com/fatedier/frp/pkg/sdk/client"
+	"github.com/SoHugePenguin/frp/pkg/config"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	clientsdk "github.com/SoHugePenguin/frp/pkg/sdk/client"
 )
 
 var adminAPITimeout = 30 * time.Second

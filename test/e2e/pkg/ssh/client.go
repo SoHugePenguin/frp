@@ -3,7 +3,7 @@ package ssh
 import (
 	"net"
 
-	libio "github.com/fatedier/golib/io"
+	libio "github.com/SoHugePenguin/golib/io"
 	"golang.org/x/crypto/ssh"
 )
 

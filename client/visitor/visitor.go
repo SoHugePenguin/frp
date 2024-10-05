@@ -19,10 +19,10 @@ import (
 	"net"
 	"sync"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/transport"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
 // Helper wraps some functions for visitor to use.
@@ -96,9 +96,9 @@ func (v *BaseVisitor) AcceptConn(conn net.Conn) error {
 
 func (v *BaseVisitor) Close() {
 	if v.l != nil {
-		v.l.Close()
+		_ = v.l.Close()
 	}
 	if v.internalLn != nil {
-		v.internalLn.Close()
+		_ = v.internalLn.Close()
 	}
 }

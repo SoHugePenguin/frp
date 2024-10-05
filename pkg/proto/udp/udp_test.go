@@ -8,11 +8,8 @@ import (
 
 func TestUdpPacket(t *testing.T) {
 	assert := assert.New(t)
-
-	buf := []byte("hello world")
+	buf := []byte("你好，企鹅")
 	udpMsg := NewUDPPacket(buf, nil, nil)
-
-	newBuf, err := GetContent(udpMsg)
-	assert.NoError(err)
+	newBuf := GetContent(udpMsg)
 	assert.EqualValues(buf, newBuf)
 }

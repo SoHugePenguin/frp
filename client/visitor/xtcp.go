@@ -24,18 +24,18 @@ import (
 	"sync"
 	"time"
 
-	libio "github.com/fatedier/golib/io"
+	libio "github.com/SoHugePenguin/golib/io"
 	fmux "github.com/hashicorp/yamux"
-	quic "github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go"
 	"golang.org/x/time/rate"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/nathole"
-	"github.com/fatedier/frp/pkg/transport"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/util"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/nathole"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
 var ErrNoTunnelSession = errors.New("no tunnel session")
@@ -149,7 +149,7 @@ func (sv *XTCPVisitor) keepTunnelOpenWorker() {
 			}
 			xl.Debugf("keepTunnelOpenWorker check success")
 			if conn != nil {
-				conn.Close()
+				_ = conn.Close()
 			}
 		}
 	}
@@ -160,7 +160,7 @@ func (sv *XTCPVisitor) handleConn(userConn net.Conn) {
 	isConnTrasfered := false
 	defer func() {
 		if !isConnTrasfered {
-			userConn.Close()
+			_ = userConn.Close()
 		}
 	}()
 
@@ -204,8 +204,8 @@ func (sv *XTCPVisitor) handleConn(userConn net.Conn) {
 		muxConnRWCloser, recycleFn = libio.WithCompressionFromPool(muxConnRWCloser)
 		defer recycleFn()
 	}
-
-	_, _, errs := libio.Join(userConn, muxConnRWCloser)
+	var inCount, outCount int64
+	errs := libio.Join(userConn, muxConnRWCloser, &inCount, &outCount, nil, nil)
 	xl.Debugf("join connections closed")
 	if len(errs) > 0 {
 		xl.Tracef("join connections errors: %v", errs)
@@ -238,7 +238,7 @@ func (sv *XTCPVisitor) openTunnel(ctx context.Context) (conn net.Conn, err error
 		}
 
 		if err != nil {
-			if err != ErrNoTunnelSession {
+			if !errors.Is(err, ErrNoTunnelSession) {
 				xl.Warnf("get tunnel connection error: %v", err)
 			}
 			continue
@@ -301,7 +301,7 @@ func (sv *XTCPVisitor) makeNatHole() {
 	xl.Tracef("nathole exchange info start")
 	natHoleRespMsg, err := nathole.ExchangeInfo(sv.ctx, sv.helper.MsgTransporter(), transactionID, natHoleVisitorMsg, 5*time.Second)
 	if err != nil {
-		listenConn.Close()
+		_ = listenConn.Close()
 		xl.Warnf("nathole exchange info error: %v", err)
 		return
 	}
@@ -312,7 +312,7 @@ func (sv *XTCPVisitor) makeNatHole() {
 
 	newListenConn, raddr, err := nathole.MakeHole(sv.ctx, listenConn, natHoleRespMsg, []byte(sv.cfg.SecretKey))
 	if err != nil {
-		listenConn.Close()
+		_ = listenConn.Close()
 		xl.Warnf("make hole error: %v", err)
 		return
 	}
@@ -320,7 +320,7 @@ func (sv *XTCPVisitor) makeNatHole() {
 	xl.Infof("establishing nat hole connection successful, sid [%s], remoteAddr [%s]", natHoleRespMsg.Sid, raddr)
 
 	if err := sv.session.Init(listenConn, raddr); err != nil {
-		listenConn.Close()
+		_ = listenConn.Close()
 		xl.Warnf("init tunnel session error: %v", err)
 		return
 	}
@@ -343,7 +343,7 @@ func NewKCPTunnelSession() TunnelSession {
 }
 
 func (ks *KCPTunnelSession) Init(listenConn *net.UDPConn, raddr *net.UDPAddr) error {
-	listenConn.Close()
+	_ = listenConn.Close()
 	laddr, _ := net.ResolveUDPAddr("udp", listenConn.LocalAddr().String())
 	lConn, err := net.DialUDP("udp", laddr, raddr)
 	if err != nil {
@@ -360,7 +360,7 @@ func (ks *KCPTunnelSession) Init(listenConn *net.UDPConn, raddr *net.UDPAddr) er
 	fmuxCfg.LogOutput = io.Discard
 	session, err := fmux.Client(remote, fmuxCfg)
 	if err != nil {
-		remote.Close()
+		_ = remote.Close()
 		return fmt.Errorf("initial client session error: %v", err)
 	}
 	ks.mu.Lock()

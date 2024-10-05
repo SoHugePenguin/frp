@@ -14,7 +14,9 @@ func TestGetHTTPSHostname(t *testing.T) {
 
 	l, err := net.Listen("tcp", "127.0.0.1:")
 	require.NoError(err)
-	defer l.Close()
+	defer func() {
+		_ = l.Close()
+	}()
 
 	var conn net.Conn
 	go func() {

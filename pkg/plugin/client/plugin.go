@@ -21,16 +21,16 @@ import (
 	"net"
 	"sync"
 
-	"github.com/fatedier/golib/errors"
+	"github.com/SoHugePenguin/golib/errors"
 	pp "github.com/pires/go-proxyproto"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
 )
 
 // Creators is used for create plugins to handle connections.
 var creators = make(map[string]CreatorFn)
 
-// params has prefix "plugin_"
+// CreatorFn params has prefix "plugin_"
 type CreatorFn func(options v1.ClientPluginOptions) (Plugin, error)
 
 func Register(name string, fn CreatorFn) {

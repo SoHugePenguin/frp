@@ -24,23 +24,23 @@ import (
 	"sync"
 	"time"
 
-	libio "github.com/fatedier/golib/io"
-	libnet "github.com/fatedier/golib/net"
+	libio "github.com/SoHugePenguin/golib/io"
+	libnet "github.com/SoHugePenguin/golib/net"
 	pp "github.com/pires/go-proxyproto"
 	"golang.org/x/time/rate"
 
-	"github.com/fatedier/frp/pkg/config/types"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	plugin "github.com/fatedier/frp/pkg/plugin/client"
-	"github.com/fatedier/frp/pkg/transport"
-	"github.com/fatedier/frp/pkg/util/limit"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/pkg/config/types"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	plugin "github.com/SoHugePenguin/frp/pkg/plugin/client"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	"github.com/SoHugePenguin/frp/pkg/util/limit"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
-var proxyFactoryRegistry = map[reflect.Type]func(*BaseProxy, v1.ProxyConfigurer) Proxy{}
+var proxyFactoryRegistry = map[reflect.Type]func(*BaseProxy, v1.ProxyConfigure) Proxy{}
 
-func RegisterProxyFactory(proxyConfType reflect.Type, factory func(*BaseProxy, v1.ProxyConfigurer) Proxy) {
+func RegisterProxyFactory(proxyConfType reflect.Type, factory func(*BaseProxy, v1.ProxyConfigure) Proxy) {
 	proxyFactoryRegistry[proxyConfType] = factory
 }
 
@@ -55,7 +55,7 @@ type Proxy interface {
 
 func NewProxy(
 	ctx context.Context,
-	pxyConf v1.ProxyConfigurer,
+	pxyConf v1.ProxyConfigure,
 	clientCfg *v1.ClientCommonConfig,
 	msgTransporter transport.MessageTransporter,
 ) (pxy Proxy) {
@@ -109,7 +109,7 @@ func (pxy *BaseProxy) Run() error {
 
 func (pxy *BaseProxy) Close() {
 	if pxy.proxyPlugin != nil {
-		pxy.proxyPlugin.Close()
+		_ = pxy.proxyPlugin.Close()
 	}
 }
 
@@ -126,7 +126,7 @@ func (pxy *BaseProxy) InWorkConn(conn net.Conn, m *msg.StartWorkConn) {
 	pxy.HandleTCPWorkConnection(conn, m, []byte(pxy.clientCfg.Auth.Token))
 }
 
-// Common handler for tcp work connections.
+// HandleTCPWorkConnection Common handler for tcp work connections.
 func (pxy *BaseProxy) HandleTCPWorkConnection(workConn net.Conn, m *msg.StartWorkConn, encKey []byte) {
 	xl := pxy.xl
 	baseCfg := pxy.baseCfg
@@ -146,7 +146,7 @@ func (pxy *BaseProxy) HandleTCPWorkConnection(workConn net.Conn, m *msg.StartWor
 	if baseCfg.Transport.UseEncryption {
 		remote, err = libio.WithEncryption(remote, encKey)
 		if err != nil {
-			workConn.Close()
+			_ = workConn.Close()
 			xl.Errorf("create encryption stream error: %v", err)
 			return
 		}
@@ -202,7 +202,7 @@ func (pxy *BaseProxy) HandleTCPWorkConnection(workConn net.Conn, m *msg.StartWor
 		libnet.WithTimeout(10*time.Second),
 	)
 	if err != nil {
-		workConn.Close()
+		_ = workConn.Close()
 		xl.Errorf("connect to local service [%s:%d] error: %v", baseCfg.LocalIP, baseCfg.LocalPort, err)
 		return
 	}
@@ -212,13 +212,14 @@ func (pxy *BaseProxy) HandleTCPWorkConnection(workConn net.Conn, m *msg.StartWor
 
 	if extraInfo.ProxyProtocolHeader != nil {
 		if _, err := extraInfo.ProxyProtocolHeader.WriteTo(localConn); err != nil {
-			workConn.Close()
+			_ = workConn.Close()
 			xl.Errorf("write proxy protocol header to local conn error: %v", err)
 			return
 		}
 	}
 
-	_, _, errs := libio.Join(localConn, remote)
+	var inCount, outCount int64
+	errs := libio.Join(localConn, remote, &inCount, &outCount, nil, nil)
 	xl.Debugf("join connections closed")
 	if len(errs) > 0 {
 		xl.Tracef("join connections errors: %v", errs)

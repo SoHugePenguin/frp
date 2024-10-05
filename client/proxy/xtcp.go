@@ -25,11 +25,11 @@ import (
 	fmux "github.com/hashicorp/yamux"
 	"github.com/quic-go/quic-go"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/nathole"
-	"github.com/fatedier/frp/pkg/transport"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/nathole"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
 )
 
 func init() {
@@ -42,7 +42,7 @@ type XTCPProxy struct {
 	cfg *v1.XTCPProxyConfig
 }
 
-func NewXTCPProxy(baseProxy *BaseProxy, cfg v1.ProxyConfigurer) Proxy {
+func NewXTCPProxy(baseProxy *BaseProxy, cfg v1.ProxyConfigure) Proxy {
 	unwrapped, ok := cfg.(*v1.XTCPProxyConfig)
 	if !ok {
 		return nil

@@ -177,7 +177,7 @@ type MakeHoleRecords struct {
 }
 
 func NewMakeHoleRecords(c, v *NatFeature) *MakeHoleRecords {
-	scores := []*BehaviorScore{}
+	var scores []*BehaviorScore
 	easyCount, hardCount, portsChangedRegularCount := ClassifyFeatureCount([]*NatFeature{c, v})
 	appendMode0 := func() {
 		switch {

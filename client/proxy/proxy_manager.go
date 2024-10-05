@@ -23,11 +23,11 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/fatedier/frp/client/event"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/transport"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/client/event"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
 type Manager struct {
@@ -92,7 +92,7 @@ func (pm *Manager) HandleWorkConn(name string, workConn net.Conn, m *msg.StartWo
 	if ok {
 		pw.InWorkConn(workConn, m)
 	} else {
-		workConn.Close()
+		_ = workConn.Close()
 	}
 }
 
@@ -129,9 +129,9 @@ func (pm *Manager) GetProxyStatus(name string) (*WorkingStatus, bool) {
 	return nil, false
 }
 
-func (pm *Manager) UpdateAll(proxyCfgs []v1.ProxyConfigurer) {
+func (pm *Manager) UpdateAll(proxyCfgs []v1.ProxyConfigure) {
 	xl := xlog.FromContextSafe(pm.ctx)
-	proxyCfgsMap := lo.KeyBy(proxyCfgs, func(c v1.ProxyConfigurer) string {
+	proxyCfgsMap := lo.KeyBy(proxyCfgs, func(c v1.ProxyConfigure) string {
 		return c.GetBaseConfig().Name
 	})
 	pm.mu.Lock()

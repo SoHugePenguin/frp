@@ -17,11 +17,11 @@ package proxy
 import (
 	"reflect"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
 )
 
 func init() {
-	pxyConfs := []v1.ProxyConfigurer{
+	pxyConfs := []v1.ProxyConfigure{
 		&v1.TCPProxyConfig{},
 		&v1.HTTPProxyConfig{},
 		&v1.HTTPSProxyConfig{},
@@ -40,7 +40,7 @@ type GeneralTCPProxy struct {
 	*BaseProxy
 }
 
-func NewGeneralTCPProxy(baseProxy *BaseProxy, _ v1.ProxyConfigurer) Proxy {
+func NewGeneralTCPProxy(baseProxy *BaseProxy, _ v1.ProxyConfigure) Proxy {
 	return &GeneralTCPProxy{
 		BaseProxy: baseProxy,
 	}

@@ -29,7 +29,7 @@ var (
 	prefixPath string
 )
 
-// if path is empty, load assets in memory
+// Load if path is empty, load assets in memory
 // or set FileSystem using disk files
 func Load(path string) {
 	prefixPath = path

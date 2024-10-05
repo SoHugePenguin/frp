@@ -18,10 +18,10 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/fatedier/golib/errors"
+	"github.com/SoHugePenguin/golib/errors"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
 )
 
 func init() {
@@ -36,7 +36,7 @@ type XTCPProxy struct {
 }
 
 func NewXTCPProxy(baseProxy *BaseProxy) Proxy {
-	unwrapped, ok := baseProxy.GetConfigurer().(*v1.XTCPProxyConfig)
+	unwrapped, ok := baseProxy.GetConfigure().(*v1.XTCPProxyConfig)
 	if !ok {
 		return nil
 	}
@@ -79,7 +79,7 @@ func (pxy *XTCPProxy) Run() (remoteAddr string, err error) {
 				if errRet != nil {
 					xl.Warnf("write nat hole sid package error, %v", errRet)
 				}
-				workConn.Close()
+				_ = workConn.Close()
 			}
 		}
 	}()

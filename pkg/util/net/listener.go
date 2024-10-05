@@ -19,7 +19,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/fatedier/golib/errors"
+	"github.com/SoHugePenguin/golib/errors"
 )
 
 // InternalListener is a listener that can be used to accept connections from
@@ -49,7 +49,7 @@ func (l *InternalListener) PutConn(conn net.Conn) error {
 		select {
 		case l.acceptCh <- conn:
 		default:
-			conn.Close()
+			_ = conn.Close()
 		}
 	})
 	if err != nil {

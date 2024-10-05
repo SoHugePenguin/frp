@@ -10,14 +10,14 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	pp "github.com/pires/go-proxyproto"
 
-	"github.com/fatedier/frp/pkg/transport"
-	"github.com/fatedier/frp/pkg/util/log"
-	"github.com/fatedier/frp/test/e2e/framework"
-	"github.com/fatedier/frp/test/e2e/framework/consts"
-	"github.com/fatedier/frp/test/e2e/mock/server/httpserver"
-	"github.com/fatedier/frp/test/e2e/mock/server/streamserver"
-	"github.com/fatedier/frp/test/e2e/pkg/request"
-	"github.com/fatedier/frp/test/e2e/pkg/rpc"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	"github.com/SoHugePenguin/frp/test/e2e/framework"
+	"github.com/SoHugePenguin/frp/test/e2e/framework/consts"
+	"github.com/SoHugePenguin/frp/test/e2e/mock/server/httpserver"
+	"github.com/SoHugePenguin/frp/test/e2e/mock/server/streamserver"
+	"github.com/SoHugePenguin/frp/test/e2e/pkg/request"
+	"github.com/SoHugePenguin/frp/test/e2e/pkg/rpc"
 )
 
 var _ = ginkgo.Describe("[Feature: Real IP]", func() {

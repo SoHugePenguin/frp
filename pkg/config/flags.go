@@ -22,9 +22,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/fatedier/frp/pkg/config/types"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/config/v1/validation"
+	"github.com/SoHugePenguin/frp/pkg/config/types"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/config/v1/validation"
 )
 
 // WordSepNormalizeFunc changes all flags that contain "_" separators
@@ -63,7 +63,7 @@ func (f *BandwidthQuantityFlag) Type() string {
 	return "string"
 }
 
-func RegisterProxyFlags(cmd *cobra.Command, c v1.ProxyConfigurer, opts ...RegisterFlagOption) {
+func RegisterProxyFlags(cmd *cobra.Command, c v1.ProxyConfigure, opts ...RegisterFlagOption) {
 	registerProxyBaseConfigFlags(cmd, c.GetBaseConfig(), opts...)
 
 	switch cc := c.(type) {

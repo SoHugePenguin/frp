@@ -18,7 +18,7 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/fatedier/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
 )
 
 type BackoffFunc func(previousDuration time.Duration, previousConditionError bool) time.Duration
@@ -116,7 +116,7 @@ func BackoffUntil(f func() (bool, error), backoff BackoffManager, sliding bool, 
 	var delay time.Duration
 	previousError := false
 
-	ticker := time.NewTicker(backoff.Backoff(delay, previousError))
+	ticker := time.NewTicker(backoff.Backoff(delay, false))
 	defer ticker.Stop()
 
 	for {

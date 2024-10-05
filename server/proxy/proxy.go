@@ -24,18 +24,18 @@ import (
 	"sync"
 	"time"
 
-	libio "github.com/fatedier/golib/io"
+	libio "github.com/SoHugePenguin/golib/io"
 	"golang.org/x/time/rate"
 
-	"github.com/fatedier/frp/pkg/config/types"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	plugin "github.com/fatedier/frp/pkg/plugin/server"
-	"github.com/fatedier/frp/pkg/util/limit"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/xlog"
-	"github.com/fatedier/frp/server/controller"
-	"github.com/fatedier/frp/server/metrics"
+	"github.com/SoHugePenguin/frp/pkg/config/types"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	plugin "github.com/SoHugePenguin/frp/pkg/plugin/server"
+	"github.com/SoHugePenguin/frp/pkg/util/limit"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/server/controller"
+	"github.com/SoHugePenguin/frp/server/metrics"
 )
 
 var proxyFactoryRegistry = map[reflect.Type]func(*BaseProxy) Proxy{}
@@ -50,7 +50,7 @@ type Proxy interface {
 	Context() context.Context
 	Run() (remoteAddr string, err error)
 	GetName() string
-	GetConfigurer() v1.ProxyConfigurer
+	GetConfigure() v1.ProxyConfigure
 	GetWorkConnFromPool(src, dst net.Addr) (workConn net.Conn, err error)
 	GetUsedPortsNum() int
 	GetResourceController() *controller.ResourceController
@@ -58,6 +58,7 @@ type Proxy interface {
 	GetLimiter() *rate.Limiter
 	GetLoginMsg() *msg.Login
 	Close()
+	InitTimer()
 }
 
 type BaseProxy struct {
@@ -71,11 +72,16 @@ type BaseProxy struct {
 	limiter       *rate.Limiter
 	userInfo      plugin.UserInfo
 	loginMsg      *msg.Login
-	configurer    v1.ProxyConfigurer
+	configure     v1.ProxyConfigure
 
 	mu  sync.RWMutex
 	xl  *xlog.Logger
 	ctx context.Context
+
+	// penguin add
+	maxInRate  *int64 // 每秒最多传输多少字节数据
+	maxOutRate *int64
+	ctlRunId   string
 }
 
 func (pxy *BaseProxy) GetName() string {
@@ -106,15 +112,33 @@ func (pxy *BaseProxy) GetLimiter() *rate.Limiter {
 	return pxy.limiter
 }
 
-func (pxy *BaseProxy) GetConfigurer() v1.ProxyConfigurer {
-	return pxy.configurer
+func (pxy *BaseProxy) GetConfigure() v1.ProxyConfigure {
+	return pxy.configure
+}
+
+// InitTimer 设置proxy速率限制计时器
+func (pxy *BaseProxy) InitTimer() {
+	// 整个隧道的共享最大速率限制
+	maxInRate := *pxy.maxInRate
+	maxOutRate := *pxy.maxOutRate
+	go func() {
+		for {
+			*pxy.maxInRate = maxInRate
+			*pxy.maxOutRate = maxOutRate
+			select {
+			case <-time.After(1 * time.Second):
+			case <-pxy.ctx.Done():
+				return
+			}
+		}
+	}()
 }
 
 func (pxy *BaseProxy) Close() {
 	xl := xlog.FromContextSafe(pxy.ctx)
 	xl.Infof("proxy closing")
 	for _, l := range pxy.listeners {
-		l.Close()
+		_ = l.Close()
 	}
 }
 
@@ -159,15 +183,10 @@ func (pxy *BaseProxy) GetWorkConnFromPool(src, dst net.Addr) (workConn net.Conn,
 		})
 		if err != nil {
 			xl.Warnf("failed to send message to work connection from pool: %v, times: %d", err, i)
-			workConn.Close()
+			_ = workConn.Close()
 		} else {
 			break
 		}
-	}
-
-	if err != nil {
-		xl.Errorf("try to get work connection failed in the end")
-		return
 	}
 	return
 }
@@ -190,8 +209,8 @@ func (pxy *BaseProxy) startCommonTCPListenersHandler() {
 						} else {
 							tempDelay *= 2
 						}
-						if max := 1 * time.Second; tempDelay > max {
-							tempDelay = max
+						if maxD := 1 * time.Second; tempDelay > maxD {
+							tempDelay = maxD
 						}
 						xl.Infof("met temporary error: %s, sleep for %s ...", err, tempDelay)
 						time.Sleep(tempDelay)
@@ -211,10 +230,12 @@ func (pxy *BaseProxy) startCommonTCPListenersHandler() {
 // HandleUserTCPConnection is used for incoming user TCP connections.
 func (pxy *BaseProxy) handleUserTCPConnection(userConn net.Conn) {
 	xl := xlog.FromContextSafe(pxy.Context())
-	defer userConn.Close()
+	defer func() {
+		_ = userConn.Close()
+	}()
 
 	serverCfg := pxy.serverCfg
-	cfg := pxy.configurer.GetBaseConfig()
+	cfg := pxy.configure.GetBaseConfig()
 	// server plugin hook
 	rc := pxy.GetResourceController()
 	content := &plugin.NewUserConnContent{
@@ -234,7 +255,9 @@ func (pxy *BaseProxy) handleUserTCPConnection(userConn net.Conn) {
 	if err != nil {
 		return
 	}
-	defer workConn.Close()
+	defer func() {
+		_ = workConn.Close()
+	}()
 
 	var local io.ReadWriteCloser = workConn
 	xl.Tracef("handler user tcp connection, use_encryption: %t, use_compression: %t",
@@ -264,10 +287,28 @@ func (pxy *BaseProxy) handleUserTCPConnection(userConn net.Conn) {
 	name := pxy.GetName()
 	proxyType := cfg.Type
 	metrics.Server.OpenConnection(name, proxyType)
-	inCount, outCount, _ := libio.Join(local, userConn)
+
+	var inCount, outCount, oldInCount, oldOutCount int64
+	var connClose bool
+	defer func() {
+		connClose = true
+	}()
+	go func() {
+		for {
+			metrics.Server.AddTrafficIn(name, proxyType, inCount-oldInCount)
+			metrics.Server.AddTrafficOut(name, proxyType, outCount-oldOutCount)
+			oldInCount = inCount
+			oldOutCount = outCount
+			if connClose {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}()
+
+	_ = libio.Join(local, userConn, &inCount, &outCount, pxy.maxInRate, pxy.maxOutRate)
+	connClose = true
 	metrics.Server.CloseConnection(name, proxyType)
-	metrics.Server.AddTrafficIn(name, proxyType, inCount)
-	metrics.Server.AddTrafficOut(name, proxyType, outCount)
 	xl.Debugf("join connections closed")
 }
 
@@ -277,22 +318,25 @@ type Options struct {
 	PoolCount          int
 	ResourceController *controller.ResourceController
 	GetWorkConnFn      GetWorkConnFn
-	Configurer         v1.ProxyConfigurer
+	Configure          v1.ProxyConfigure
 	ServerCfg          *v1.ServerConfig
+	MaxInRate          int64
+	MaxOutRate         int64
+	CtlRunId           string
 }
 
 func NewProxy(ctx context.Context, options *Options) (pxy Proxy, err error) {
-	configurer := options.Configurer
-	xl := xlog.FromContextSafe(ctx).Spawn().AppendPrefix(configurer.GetBaseConfig().Name)
+	configure := options.Configure
+	xl := xlog.FromContextSafe(ctx).Spawn().AppendPrefix(configure.GetBaseConfig().Name)
 
 	var limiter *rate.Limiter
-	limitBytes := configurer.GetBaseConfig().Transport.BandwidthLimit.Bytes()
-	if limitBytes > 0 && configurer.GetBaseConfig().Transport.BandwidthLimitMode == types.BandwidthLimitModeServer {
-		limiter = rate.NewLimiter(rate.Limit(float64(limitBytes)), int(limitBytes))
+	limitBytes := configure.GetBaseConfig().Transport.BandwidthLimit.Bytes()
+	if limitBytes > 0 && configure.GetBaseConfig().Transport.BandwidthLimitMode == types.BandwidthLimitModeServer {
+		limiter = rate.NewLimiter(rate.Limit(limitBytes), int(limitBytes))
 	}
 
 	basePxy := BaseProxy{
-		name:          configurer.GetBaseConfig().Name,
+		name:          configure.GetBaseConfig().Name,
 		rc:            options.ResourceController,
 		listeners:     make([]net.Listener, 0),
 		poolCount:     options.PoolCount,
@@ -303,10 +347,13 @@ func NewProxy(ctx context.Context, options *Options) (pxy Proxy, err error) {
 		ctx:           xlog.NewContext(ctx, xl),
 		userInfo:      options.UserInfo,
 		loginMsg:      options.LoginMsg,
-		configurer:    configurer,
+		configure:     configure,
+		maxInRate:     &options.MaxInRate,
+		maxOutRate:    &options.MaxOutRate,
+		ctlRunId:      options.CtlRunId,
 	}
 
-	factory := proxyFactoryRegistry[reflect.TypeOf(configurer)]
+	factory := proxyFactoryRegistry[reflect.TypeOf(configure)]
 	if factory == nil {
 		return pxy, fmt.Errorf("proxy type not support")
 	}

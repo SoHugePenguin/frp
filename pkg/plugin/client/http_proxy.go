@@ -26,12 +26,12 @@ import (
 	"strings"
 	"time"
 
-	libio "github.com/fatedier/golib/io"
-	libnet "github.com/fatedier/golib/net"
+	libio "github.com/SoHugePenguin/golib/io"
+	libnet "github.com/SoHugePenguin/golib/net"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/util"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
 )
 
 func init() {
@@ -76,7 +76,7 @@ func (hp *HTTPProxy) Handle(_ context.Context, conn io.ReadWriteCloser, realConn
 	firstBytes := make([]byte, 7)
 	_, err := rd.Read(firstBytes)
 	if err != nil {
-		wrapConn.Close()
+		_ = wrapConn.Close()
 		return
 	}
 
@@ -84,7 +84,7 @@ func (hp *HTTPProxy) Handle(_ context.Context, conn io.ReadWriteCloser, realConn
 		bufRd := bufio.NewReader(sc)
 		request, err := http.ReadRequest(bufRd)
 		if err != nil {
-			wrapConn.Close()
+			_ = wrapConn.Close()
 			return
 		}
 		hp.handleConnectReq(request, libio.WrapReadWriteCloser(bufRd, wrapConn, wrapConn.Close))
@@ -95,8 +95,8 @@ func (hp *HTTPProxy) Handle(_ context.Context, conn io.ReadWriteCloser, realConn
 }
 
 func (hp *HTTPProxy) Close() error {
-	hp.s.Close()
-	hp.l.Close()
+	_ = hp.s.Close()
+	_ = hp.l.Close()
 	return nil
 }
 
@@ -124,7 +124,9 @@ func (hp *HTTPProxy) HTTPHandler(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	copyHeaders(rw.Header(), resp.Header)
 	rw.WriteHeader(resp.StatusCode)
@@ -135,7 +137,7 @@ func (hp *HTTPProxy) HTTPHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// deprecated
+// ConnectHandler deprecated
 // Hijack needs to SetReadDeadline on the Conn of the request, but if we use stream compression here,
 // we may always get i/o timeout error.
 func (hp *HTTPProxy) ConnectHandler(rw http.ResponseWriter, req *http.Request) {
@@ -154,12 +156,13 @@ func (hp *HTTPProxy) ConnectHandler(rw http.ResponseWriter, req *http.Request) {
 	remote, err := net.Dial("tcp", req.URL.Host)
 	if err != nil {
 		http.Error(rw, "Failed", http.StatusBadRequest)
-		client.Close()
+		_ = client.Close()
 		return
 	}
 	_, _ = client.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
 
-	go libio.Join(remote, client)
+	var inCount, outCount int64
+	go libio.Join(remote, client, &inCount, &outCount, nil, nil)
 }
 
 func (hp *HTTPProxy) Auth(req *http.Request) bool {
@@ -191,12 +194,14 @@ func (hp *HTTPProxy) Auth(req *http.Request) bool {
 }
 
 func (hp *HTTPProxy) handleConnectReq(req *http.Request, rwc io.ReadWriteCloser) {
-	defer rwc.Close()
+	defer func() {
+		_ = rwc.Close()
+	}()
 	if ok := hp.Auth(req); !ok {
 		res := getBadResponse()
 		_ = res.Write(rwc)
 		if res.Body != nil {
-			res.Body.Close()
+			_ = res.Body.Close()
 		}
 		return
 	}
@@ -214,7 +219,10 @@ func (hp *HTTPProxy) handleConnectReq(req *http.Request, rwc io.ReadWriteCloser)
 	}
 	_, _ = rwc.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
 
-	libio.Join(remote, rwc)
+	var inCount, outCount int64
+	var maxInRate int64 = 9999999999
+	var maxOutRate int64 = 9999999999
+	libio.Join(remote, rwc, &inCount, &outCount, &maxInRate, &maxOutRate)
 }
 
 func copyHeaders(dst, src http.Header) {

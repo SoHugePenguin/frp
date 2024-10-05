@@ -21,9 +21,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fatedier/frp/pkg/config"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/config/v1/validation"
+	"github.com/SoHugePenguin/frp/pkg/config"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/config/v1/validation"
 )
 
 var proxyTypes = []v1.ProxyType{
@@ -45,7 +45,7 @@ var visitorTypes = []v1.VisitorType{
 
 func init() {
 	for _, typ := range proxyTypes {
-		c := v1.NewProxyConfigurerByType(typ)
+		c := v1.NewProxyConfigureByType(typ)
 		if c == nil {
 			panic("proxy type: " + typ + " not support")
 		}
@@ -68,7 +68,7 @@ func init() {
 	}
 }
 
-func NewProxyCommand(name string, c v1.ProxyConfigurer, clientCfg *v1.ClientCommonConfig) *cobra.Command {
+func NewProxyCommand(name string, c v1.ProxyConfigure, clientCfg *v1.ClientCommonConfig) *cobra.Command {
 	return &cobra.Command{
 		Use:   name,
 		Short: fmt.Sprintf("Run frpc with a single %s proxy", name),
@@ -85,7 +85,7 @@ func NewProxyCommand(name string, c v1.ProxyConfigurer, clientCfg *v1.ClientComm
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			err := startService(clientCfg, []v1.ProxyConfigurer{c}, nil, "")
+			err := startService(clientCfg, []v1.ProxyConfigure{c}, nil, "")
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)

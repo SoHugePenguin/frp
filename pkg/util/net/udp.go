@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fatedier/golib/pool"
+	"github.com/SoHugePenguin/golib/pool"
 )
 
 type UDPPacket struct {
@@ -57,7 +57,7 @@ func NewFakeUDPConn(l *UDPListener, laddr, raddr net.Addr) *FakeUDPConn {
 			fc.mu.RLock()
 			if time.Since(fc.lastActive) > 10*time.Second {
 				fc.mu.RUnlock()
-				fc.Close()
+				_ = fc.Close()
 				break
 			}
 			fc.mu.RUnlock()
@@ -247,7 +247,7 @@ func (l *UDPListener) Close() error {
 	if !l.closeFlag {
 		l.closeFlag = true
 		if l.readConn != nil {
-			l.readConn.Close()
+			_ = l.readConn.Close()
 		}
 	}
 	return nil

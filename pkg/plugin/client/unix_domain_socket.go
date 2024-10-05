@@ -21,10 +21,10 @@ import (
 	"io"
 	"net"
 
-	libio "github.com/fatedier/golib/io"
+	libio "github.com/SoHugePenguin/golib/io"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
 func init() {
@@ -63,7 +63,8 @@ func (uds *UnixDomainSocketPlugin) Handle(ctx context.Context, conn io.ReadWrite
 		}
 	}
 
-	libio.Join(localConn, conn)
+	var inCount, outCount int64
+	libio.Join(localConn, conn, &inCount, &outCount, nil, nil)
 }
 
 func (uds *UnixDomainSocketPlugin) Name() string {

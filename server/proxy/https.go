@@ -18,9 +18,9 @@ import (
 	"reflect"
 	"strings"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/util/util"
-	"github.com/fatedier/frp/pkg/util/vhost"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/util/vhost"
 )
 
 func init() {
@@ -33,7 +33,7 @@ type HTTPSProxy struct {
 }
 
 func NewHTTPSProxy(baseProxy *BaseProxy) Proxy {
-	unwrapped, ok := baseProxy.GetConfigurer().(*v1.HTTPSProxyConfig)
+	unwrapped, ok := baseProxy.GetConfigure().(*v1.HTTPSProxyConfig)
 	if !ok {
 		return nil
 	}

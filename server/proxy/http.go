@@ -20,14 +20,14 @@ import (
 	"reflect"
 	"strings"
 
-	libio "github.com/fatedier/golib/io"
+	libio "github.com/SoHugePenguin/golib/io"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/util/limit"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/util"
-	"github.com/fatedier/frp/pkg/util/vhost"
-	"github.com/fatedier/frp/server/metrics"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/util/limit"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/util/vhost"
+	"github.com/SoHugePenguin/frp/server/metrics"
 )
 
 func init() {
@@ -42,7 +42,7 @@ type HTTPProxy struct {
 }
 
 func NewHTTPProxy(baseProxy *BaseProxy) Proxy {
-	unwrapped, ok := baseProxy.GetConfigurer().(*v1.HTTPProxyConfig)
+	unwrapped, ok := baseProxy.GetConfigure().(*v1.HTTPProxyConfig)
 	if !ok {
 		return nil
 	}
@@ -183,13 +183,13 @@ func (pxy *HTTPProxy) GetRealConn(remoteAddr string) (workConn net.Conn, err err
 
 	workConn = netpkg.WrapReadWriteCloserToConn(rwc, tmpConn)
 	workConn = netpkg.WrapStatsConn(workConn, pxy.updateStatsAfterClosedConn)
-	metrics.Server.OpenConnection(pxy.GetName(), pxy.GetConfigurer().GetBaseConfig().Type)
+	metrics.Server.OpenConnection(pxy.GetName(), pxy.GetConfigure().GetBaseConfig().Type)
 	return
 }
 
 func (pxy *HTTPProxy) updateStatsAfterClosedConn(totalRead, totalWrite int64) {
 	name := pxy.GetName()
-	proxyType := pxy.GetConfigurer().GetBaseConfig().Type
+	proxyType := pxy.GetConfigure().GetBaseConfig().Type
 	metrics.Server.CloseConnection(name, proxyType)
 	metrics.Server.AddTrafficIn(name, proxyType, totalWrite)
 	metrics.Server.AddTrafficOut(name, proxyType, totalRead)

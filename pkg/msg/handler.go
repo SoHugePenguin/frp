@@ -30,7 +30,7 @@ type Dispatcher struct {
 	rw io.ReadWriter
 
 	sendCh         chan Message
-	doneCh         chan struct{}
+	DoneCh         chan struct{}
 	msgHandlers    map[reflect.Type]func(Message)
 	defaultHandler func(Message)
 }
@@ -39,7 +39,7 @@ func NewDispatcher(rw io.ReadWriter) *Dispatcher {
 	return &Dispatcher{
 		rw:          rw,
 		sendCh:      make(chan Message, 100),
-		doneCh:      make(chan struct{}),
+		DoneCh:      make(chan struct{}),
 		msgHandlers: make(map[reflect.Type]func(Message)),
 	}
 }
@@ -53,7 +53,7 @@ func (d *Dispatcher) Run() {
 func (d *Dispatcher) sendLoop() {
 	for {
 		select {
-		case <-d.doneCh:
+		case <-d.DoneCh:
 			return
 		case m := <-d.sendCh:
 			_ = WriteMsg(d.rw, m)
@@ -65,7 +65,7 @@ func (d *Dispatcher) readLoop() {
 	for {
 		m, err := ReadMsg(d.rw)
 		if err != nil {
-			close(d.doneCh)
+			close(d.DoneCh)
 			return
 		}
 
@@ -79,7 +79,7 @@ func (d *Dispatcher) readLoop() {
 
 func (d *Dispatcher) Send(m Message) error {
 	select {
-	case <-d.doneCh:
+	case <-d.DoneCh:
 		return io.EOF
 	case d.sendCh <- m:
 		return nil
@@ -99,5 +99,5 @@ func (d *Dispatcher) RegisterDefaultHandler(handler func(Message)) {
 }
 
 func (d *Dispatcher) Done() chan struct{} {
-	return d.doneCh
+	return d.DoneCh
 }

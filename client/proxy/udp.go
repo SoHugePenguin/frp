@@ -23,14 +23,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fatedier/golib/errors"
-	libio "github.com/fatedier/golib/io"
+	"github.com/SoHugePenguin/golib/errors"
+	libio "github.com/SoHugePenguin/golib/io"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/proto/udp"
-	"github.com/fatedier/frp/pkg/util/limit"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/proto/udp"
+	"github.com/SoHugePenguin/frp/pkg/util/limit"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
 )
 
 func init() {
@@ -51,7 +51,7 @@ type UDPProxy struct {
 	closed   bool
 }
 
-func NewUDPProxy(baseProxy *BaseProxy, cfg v1.ProxyConfigurer) Proxy {
+func NewUDPProxy(baseProxy *BaseProxy, cfg v1.ProxyConfigure) Proxy {
 	unwrapped, ok := cfg.(*v1.UDPProxyConfig)
 	if !ok {
 		return nil
@@ -77,7 +77,7 @@ func (pxy *UDPProxy) Close() {
 	if !pxy.closed {
 		pxy.closed = true
 		if pxy.workConn != nil {
-			pxy.workConn.Close()
+			_ = pxy.workConn.Close()
 		}
 		if pxy.readCh != nil {
 			close(pxy.readCh)
@@ -104,7 +104,7 @@ func (pxy *UDPProxy) InWorkConn(conn net.Conn, _ *msg.StartWorkConn) {
 	if pxy.cfg.Transport.UseEncryption {
 		rwc, err = libio.WithEncryption(rwc, []byte(pxy.clientCfg.Auth.Token))
 		if err != nil {
-			conn.Close()
+			_ = conn.Close()
 			xl.Errorf("create encryption stream error: %v", err)
 			return
 		}

@@ -3,7 +3,7 @@ package prometheus
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/fatedier/frp/server/metrics"
+	"github.com/SoHugePenguin/frp/server/metrics"
 )
 
 const (

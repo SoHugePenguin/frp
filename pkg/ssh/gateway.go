@@ -23,10 +23,10 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/transport"
-	"github.com/fatedier/frp/pkg/util/log"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
 )
 
 type Gateway struct {
@@ -113,7 +113,9 @@ func (g *Gateway) Run() {
 }
 
 func (g *Gateway) handleConn(conn net.Conn) {
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	ts, err := NewTunnelServer(conn, g.sshConfig, g.peerServerListener)
 	if err != nil {

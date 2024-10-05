@@ -17,7 +17,7 @@ package proxy
 import (
 	"reflect"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
 )
 
 func init() {
@@ -30,7 +30,7 @@ type STCPProxy struct {
 }
 
 func NewSTCPProxy(baseProxy *BaseProxy) Proxy {
-	unwrapped, ok := baseProxy.GetConfigurer().(*v1.STCPProxyConfig)
+	unwrapped, ok := baseProxy.GetConfigure().(*v1.STCPProxyConfig)
 	if !ok {
 		return nil
 	}

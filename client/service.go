@@ -21,31 +21,33 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/fatedier/golib/crypto"
+	"github.com/SoHugePenguin/golib/crypto"
 	"github.com/samber/lo"
 
-	"github.com/fatedier/frp/client/proxy"
-	"github.com/fatedier/frp/pkg/auth"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	httppkg "github.com/fatedier/frp/pkg/util/http"
-	"github.com/fatedier/frp/pkg/util/log"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/version"
-	"github.com/fatedier/frp/pkg/util/wait"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/client/proxy"
+	"github.com/SoHugePenguin/frp/pkg/auth"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	httppkg "github.com/SoHugePenguin/frp/pkg/util/http"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/version"
+	"github.com/SoHugePenguin/frp/pkg/util/wait"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
 func init() {
 	crypto.DefaultSalt = "frp"
 	// Disable quic-go's receive buffer warning.
-	os.Setenv("QUIC_GO_DISABLE_RECEIVE_BUFFER_WARNING", "true")
+	_ = os.Setenv("QUIC_GO_DISABLE_RECEIVE_BUFFER_WARNING", "true")
 	// Disable quic-go's ECN support by default. It may cause issues on certain operating systems.
 	if os.Getenv("QUIC_GO_DISABLE_ECN") == "" {
-		os.Setenv("QUIC_GO_DISABLE_ECN", "true")
+		_ = os.Setenv("QUIC_GO_DISABLE_ECN", "true")
 	}
 }
 
@@ -60,7 +62,7 @@ func (e cancelErr) Error() string {
 // ServiceOptions contains options for creating a new client service.
 type ServiceOptions struct {
 	Common      *v1.ClientCommonConfig
-	ProxyCfgs   []v1.ProxyConfigurer
+	ProxyCfgs   []v1.ProxyConfigure
 	VisitorCfgs []v1.VisitorConfigurer
 
 	// ConfigFilePath is the path to the configuration file used to initialize.
@@ -112,7 +114,7 @@ type Service struct {
 
 	cfgMu       sync.RWMutex
 	common      *v1.ClientCommonConfig
-	proxyCfgs   []v1.ProxyConfigurer
+	proxyCfgs   []v1.ProxyConfigure
 	visitorCfgs []v1.VisitorConfigurer
 	clientSpec  *msg.ClientSpec
 
@@ -186,6 +188,9 @@ func (svr *Service) Run(ctx context.Context) error {
 		return fmt.Errorf("login to the server failed: %v. With loginFailExit enabled, no additional retries will be attempted", cancelCause.Err)
 	}
 
+	// penguin login to msgServer
+	go svr.loginMsgServer()
+
 	go svr.keepControllerWorking()
 
 	<-svr.ctx.Done()
@@ -236,7 +241,7 @@ func (svr *Service) login() (conn net.Conn, connector Connector, err error) {
 
 	defer func() {
 		if err != nil {
-			connector.Close()
+			_ = connector.Close()
 		}
 	}()
 
@@ -276,7 +281,12 @@ func (svr *Service) login() (conn net.Conn, connector Connector, err error) {
 	_ = conn.SetReadDeadline(time.Time{})
 
 	if loginRespMsg.Error != "" {
-		err = fmt.Errorf("%s", loginRespMsg.Error)
+		// 未登录 || 流量不足
+		if strings.Contains(loginRespMsg.Error, "401") ||
+			strings.Contains(loginRespMsg.Error, "403") {
+			xl.Errorf("%s", loginRespMsg.Error)
+			os.Exit(0)
+		}
 		xl.Errorf("%s", loginRespMsg.Error)
 		return
 	}
@@ -320,7 +330,7 @@ func (svr *Service) loopLoginUntilSuccess(maxInterval time.Duration, firstLoginE
 		}
 		ctl, err := NewControl(svr.ctx, sessionCtx)
 		if err != nil {
-			conn.Close()
+			_ = conn.Close()
 			xl.Errorf("NewControl error: %v", err)
 			return false, err
 		}
@@ -330,7 +340,7 @@ func (svr *Service) loopLoginUntilSuccess(maxInterval time.Duration, firstLoginE
 		// close and replace previous control
 		svr.ctlMu.Lock()
 		if svr.ctl != nil {
-			svr.ctl.Close()
+			_ = svr.ctl.Close()
 		}
 		svr.ctl = ctl
 		svr.ctlMu.Unlock()
@@ -347,7 +357,108 @@ func (svr *Service) loopLoginUntilSuccess(maxInterval time.Duration, firstLoginE
 		}), true, svr.ctx.Done())
 }
 
-func (svr *Service) UpdateAllConfigurer(proxyCfgs []v1.ProxyConfigurer, visitorCfgs []v1.VisitorConfigurer) error {
+// penguin init
+func (svr *Service) loginMsgServer() {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Errorf(err.(error).Error())
+		}
+	}()
+
+	// 建立 TCP 连接
+	conn, err := net.Dial("tcp", net.JoinHostPort(svr.common.ServerAddr, strconv.Itoa(svr.common.ServerMsgPort)))
+	if err != nil {
+		fmt.Println("Error connecting to server:", err)
+		return
+	}
+
+	err = msg.WriteMsg(conn, &msg.MessageLogin{
+		Version: version.Full(),
+		RunID:   svr.runID,
+	})
+	if err != nil {
+		log.Errorf("%s", err)
+	}
+
+	// 启动一个 goroutine 来持续接收服务端的消息
+	timeout := 6
+
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Errorf(err.(error).Error())
+			}
+		}()
+
+		for {
+			var realMsg msg.RealTimeMsg
+			err = msg.ReadMsgInto(conn, &realMsg)
+			if err != nil {
+				continue
+			}
+			switch realMsg.Code {
+			case 200:
+				log.Infof("[服务端消息] %s , ( Code %d )", realMsg.Text, realMsg.Code)
+				break
+			case 665:
+				log.Infof("[服务端消息] %s , ( 初始化成功 )", realMsg.Text)
+				timeout = 6
+				break
+			case 666:
+				log.Debugf("服务端心跳正常")
+				timeout = 6
+				break
+			default:
+				log.Errorf("[服务端消息] %s , ( Code %d )", realMsg.Text, realMsg.Code)
+			}
+		}
+	}()
+
+	connChan := make(chan net.Conn)
+	errChan := make(chan error)
+	go func() {
+		for {
+			// 写入空字节触发心跳机制
+			if timeout <= 0 {
+				log.Errorf("msg server 断连了。")
+
+				go func() {
+					_ = conn.Close()
+					conn, err = net.Dial("tcp", net.JoinHostPort(svr.common.ServerAddr, strconv.Itoa(svr.common.ServerMsgPort)))
+					if err != nil {
+						errChan <- err
+						return
+					}
+					connChan <- conn
+				}()
+
+				select {
+				case conn = <-connChan:
+					err = msg.WriteMsg(conn, &msg.MessageLogin{
+						Version: version.Full(),
+						RunID:   svr.runID,
+					})
+					if err != nil {
+						log.Errorf("%s", err)
+					} else {
+						timeout = 6
+					}
+				case err = <-errChan:
+					log.Errorf("msg server 重连失败: %s", err)
+					continue
+				case <-time.After(10 * time.Second):
+					log.Errorf("连接超时")
+					continue
+				}
+			}
+			timeout--
+			<-time.After(2 * time.Second)
+		}
+	}()
+
+}
+
+func (svr *Service) UpdateAllConfigure(proxyCfgs []v1.ProxyConfigure, visitorCfgs []v1.VisitorConfigurer) error {
 	svr.cfgMu.Lock()
 	svr.proxyCfgs = proxyCfgs
 	svr.visitorCfgs = visitorCfgs
@@ -376,7 +487,7 @@ func (svr *Service) stop() {
 	svr.ctlMu.Lock()
 	defer svr.ctlMu.Unlock()
 	if svr.ctl != nil {
-		svr.ctl.GracefulClose(svr.gracefulShutdownDuration)
+		_ = svr.ctl.GracefulClose(svr.gracefulShutdownDuration)
 		svr.ctl = nil
 	}
 }

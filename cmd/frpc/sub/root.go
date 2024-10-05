@@ -27,12 +27,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fatedier/frp/client"
-	"github.com/fatedier/frp/pkg/config"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/config/v1/validation"
-	"github.com/fatedier/frp/pkg/util/log"
-	"github.com/fatedier/frp/pkg/util/version"
+	"github.com/SoHugePenguin/frp/client"
+	"github.com/SoHugePenguin/frp/pkg/config"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/config/v1/validation"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	"github.com/SoHugePenguin/frp/pkg/util/version"
 )
 
 var (
@@ -51,7 +51,7 @@ func init() {
 
 var rootCmd = &cobra.Command{
 	Use:   "frpc",
-	Short: "frpc is the client of frp (https://github.com/fatedier/frp)",
+	Short: "frpc is the client of frp (https://github.com/SoHugePenguin/frp)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if showVersion {
 			fmt.Println(" [企鹅frp-client]: 你正在使用的版本是基于" + version.Full() + "的特制版")
@@ -132,7 +132,7 @@ func runClient(cfgFilePath string) error {
 
 func startService(
 	cfg *v1.ClientCommonConfig,
-	proxyCfgs []v1.ProxyConfigurer,
+	proxyCfgs []v1.ProxyConfigure,
 	visitorCfgs []v1.VisitorConfigurer,
 	cfgFile string,
 ) error {

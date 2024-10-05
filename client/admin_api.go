@@ -26,12 +26,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fatedier/frp/client/proxy"
-	"github.com/fatedier/frp/pkg/config"
-	"github.com/fatedier/frp/pkg/config/v1/validation"
-	httppkg "github.com/fatedier/frp/pkg/util/http"
-	"github.com/fatedier/frp/pkg/util/log"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/client/proxy"
+	"github.com/SoHugePenguin/frp/pkg/config"
+	"github.com/SoHugePenguin/frp/pkg/config/v1/validation"
+	httppkg "github.com/SoHugePenguin/frp/pkg/util/http"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
 )
 
 type GeneralResponse struct {
@@ -99,7 +99,7 @@ func (svr *Service) apiReload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := svr.UpdateAllConfigurer(proxyCfgs, visitorCfgs); err != nil {
+	if err := svr.UpdateAllConfigure(proxyCfgs, visitorCfgs); err != nil {
 		res.Code = 500
 		res.Msg = err.Error()
 		log.Warnf("reload frpc proxy config error: %s", res.Msg)

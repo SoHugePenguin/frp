@@ -22,15 +22,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fatedier/golib/errors"
-	libio "github.com/fatedier/golib/io"
+	"github.com/SoHugePenguin/golib/errors"
+	libio "github.com/SoHugePenguin/golib/io"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/proto/udp"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/util"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/proto/udp"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
 type SUDPVisitor struct {
@@ -45,7 +45,7 @@ type SUDPVisitor struct {
 	cfg *v1.SUDPVisitorConfig
 }
 
-// SUDP Run start listen a udp port
+// Run SUDP Run start listen a udp port
 func (sv *SUDPVisitor) Run() (err error) {
 	xl := xlog.FromContextSafe(sv.ctx)
 
@@ -65,7 +65,9 @@ func (sv *SUDPVisitor) Run() (err error) {
 	xl.Infof("sudp start to work, listen on %s", addr)
 
 	go sv.dispatcher()
-	go udp.ForwardUserConn(sv.udpConn, sv.readCh, sv.sendCh, int(sv.clientCfg.UDPPacketSize))
+	go func() {
+		_ = udp.ForwardUserConn(sv.udpConn, sv.readCh, sv.sendCh, int(sv.clientCfg.UDPPacketSize))
+	}()
 
 	return
 }
@@ -120,7 +122,7 @@ func (sv *SUDPVisitor) worker(workConn net.Conn, firstPacket *msg.UDPPacket) {
 	// udp service -> frpc -> frps -> frpc visitor -> user
 	workConnReaderFn := func(conn net.Conn) {
 		defer func() {
-			conn.Close()
+			_ = conn.Close()
 			close(closeCh)
 			wg.Done()
 		}()
@@ -158,7 +160,7 @@ func (sv *SUDPVisitor) worker(workConn net.Conn, firstPacket *msg.UDPPacket) {
 	// udp service <- frpc <- frps <- frpc visitor <- user
 	workConnSenderFn := func(conn net.Conn) {
 		defer func() {
-			conn.Close()
+			_ = conn.Close()
 			wg.Done()
 		}()
 
@@ -257,7 +259,7 @@ func (sv *SUDPVisitor) Close() {
 	}
 	sv.BaseVisitor.Close()
 	if sv.udpConn != nil {
-		sv.udpConn.Close()
+		_ = sv.udpConn.Close()
 	}
 	close(sv.readCh)
 	close(sv.sendCh)

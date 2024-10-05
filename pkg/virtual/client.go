@@ -18,10 +18,10 @@ import (
 	"context"
 	"net"
 
-	"github.com/fatedier/frp/client"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/client"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
 )
 
 type ClientOptions struct {
@@ -66,8 +66,8 @@ func (c *Client) PeerListener() net.Listener {
 	return c.l
 }
 
-func (c *Client) UpdateProxyConfigurer(proxyCfgs []v1.ProxyConfigurer) {
-	_ = c.svr.UpdateAllConfigurer(proxyCfgs, nil)
+func (c *Client) UpdateProxyConfigurer(proxyCfgs []v1.ProxyConfigure) {
+	_ = c.svr.UpdateAllConfigure(proxyCfgs, nil)
 }
 
 func (c *Client) Run(ctx context.Context) error {
@@ -80,7 +80,7 @@ func (c *Client) Service() *client.Service {
 
 func (c *Client) Close() {
 	c.svr.Close()
-	c.l.Close()
+	_ = c.l.Close()
 }
 
 type pipeConnector struct {
@@ -94,14 +94,14 @@ func (pc *pipeConnector) Open() error {
 func (pc *pipeConnector) Connect() (net.Conn, error) {
 	c1, c2 := net.Pipe()
 	if err := pc.peerListener.PutConn(c1); err != nil {
-		c1.Close()
-		c2.Close()
+		_ = c1.Close()
+		_ = c2.Close()
 		return nil, err
 	}
 	return c2, nil
 }
 
 func (pc *pipeConnector) Close() error {
-	pc.peerListener.Close()
+	_ = pc.peerListener.Close()
 	return nil
 }

@@ -29,11 +29,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
-	"github.com/fatedier/frp/pkg/config/legacy"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/config/v1/validation"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/config/legacy"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/config/v1/validation"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
 )
 
 var glbEnvs map[string]string
@@ -141,10 +141,10 @@ func LoadConfigure(b []byte, c any, strict bool) error {
 	return yaml.Unmarshal(b, c)
 }
 
-func NewProxyConfigurerFromMsg(m *msg.NewProxy, serverCfg *v1.ServerConfig) (v1.ProxyConfigurer, error) {
+func NewProxyConfigurerFromMsg(m *msg.NewProxy, serverCfg *v1.ServerConfig) (v1.ProxyConfigure, error) {
 	m.ProxyType = util.EmptyOr(m.ProxyType, string(v1.ProxyTypeTCP))
 
-	configurer := v1.NewProxyConfigurerByType(v1.ProxyType(m.ProxyType))
+	configurer := v1.NewProxyConfigureByType(v1.ProxyType(m.ProxyType))
 	if configurer == nil {
 		return nil, fmt.Errorf("unknown proxy type: %s", m.ProxyType)
 	}
@@ -189,13 +189,13 @@ func LoadServerConfig(path string, strict bool) (*v1.ServerConfig, bool, error) 
 
 func LoadClientConfig(path string, strict bool) (
 	*v1.ClientCommonConfig,
-	[]v1.ProxyConfigurer,
+	[]v1.ProxyConfigure,
 	[]v1.VisitorConfigurer,
 	bool, error,
 ) {
 	var (
 		cliCfg         *v1.ClientCommonConfig
-		proxyCfgs      = make([]v1.ProxyConfigurer, 0)
+		proxyCfgs      = make([]v1.ProxyConfigure, 0)
 		visitorCfgs    = make([]v1.VisitorConfigurer, 0)
 		isLegacyFormat bool
 	)
@@ -219,14 +219,26 @@ func LoadClientConfig(path string, strict bool) (
 			return nil, nil, nil, false, err
 		}
 		cliCfg = &allCfg.ClientCommonConfig
+		//cliCfg.Transport.TLS.CertFile, _ = filepath.Abs(cliCfg.Transport.TLS.CertFile)
+		//cliCfg.Transport.TLS.KeyFile, _ = filepath.Abs(cliCfg.Transport.TLS.KeyFile)
+		//cliCfg.Transport.TLS.TrustedCaFile, _ = filepath.Abs(cliCfg.Transport.TLS.TrustedCaFile)
 
-		cliCfg.Transport.TLS.CertFile, _ = filepath.Abs(cliCfg.Transport.TLS.CertFile)
-		cliCfg.Transport.TLS.KeyFile, _ = filepath.Abs(cliCfg.Transport.TLS.KeyFile)
-		fmt.Println("[企鹅]: loading ca证书位置-> " + cliCfg.Transport.TLS.CertFile)
-		fmt.Println("[企鹅]: loading ca密钥位置-> " + cliCfg.Transport.TLS.KeyFile)
+		certPath, err := filepath.Abs(cliCfg.Transport.TLS.CertFile)
+		if err != nil {
+			fmt.Println("[企鹅]: 获取证书位置时发生错误 ->", err)
+		} else {
+			fmt.Println("[企鹅]: loading ca证书位置 -> " + certPath)
+		}
+
+		keyPath, err := filepath.Abs(cliCfg.Transport.TLS.KeyFile)
+		if err != nil {
+			fmt.Println("[企鹅]: 获取证书位置时发生错误 ->", err)
+		} else {
+			fmt.Println("[企鹅]: loading ca密钥位置 -> " + keyPath)
+		}
 
 		for _, c := range allCfg.Proxies {
-			proxyCfgs = append(proxyCfgs, c.ProxyConfigurer)
+			proxyCfgs = append(proxyCfgs, c.ProxyConfigure)
 		}
 		for _, c := range allCfg.Visitors {
 			visitorCfgs = append(visitorCfgs, c.VisitorConfigurer)
@@ -247,7 +259,7 @@ func LoadClientConfig(path string, strict bool) (
 	// Filter by start
 	if len(cliCfg.Start) > 0 {
 		startSet := sets.New(cliCfg.Start...)
-		proxyCfgs = lo.Filter(proxyCfgs, func(c v1.ProxyConfigurer, _ int) bool {
+		proxyCfgs = lo.Filter(proxyCfgs, func(c v1.ProxyConfigure, _ int) bool {
 			return startSet.Has(c.GetBaseConfig().Name)
 		})
 		visitorCfgs = lo.Filter(visitorCfgs, func(c v1.VisitorConfigurer, _ int) bool {
@@ -267,8 +279,8 @@ func LoadClientConfig(path string, strict bool) (
 	return cliCfg, proxyCfgs, visitorCfgs, isLegacyFormat, nil
 }
 
-func LoadAdditionalClientConfigs(paths []string, isLegacyFormat bool, strict bool) ([]v1.ProxyConfigurer, []v1.VisitorConfigurer, error) {
-	proxyCfgs := make([]v1.ProxyConfigurer, 0)
+func LoadAdditionalClientConfigs(paths []string, isLegacyFormat bool, strict bool) ([]v1.ProxyConfigure, []v1.VisitorConfigurer, error) {
+	proxyCfgs := make([]v1.ProxyConfigure, 0)
 	visitorCfgs := make([]v1.VisitorConfigurer, 0)
 	for _, path := range paths {
 		absDir, err := filepath.Abs(filepath.Dir(path))
@@ -294,7 +306,7 @@ func LoadAdditionalClientConfigs(paths []string, isLegacyFormat bool, strict boo
 					return nil, nil, fmt.Errorf("load additional config from %s error: %v", absFile, err)
 				}
 				for _, c := range cfg.Proxies {
-					proxyCfgs = append(proxyCfgs, c.ProxyConfigurer)
+					proxyCfgs = append(proxyCfgs, c.ProxyConfigure)
 				}
 				for _, c := range cfg.Visitors {
 					visitorCfgs = append(visitorCfgs, c.VisitorConfigurer)

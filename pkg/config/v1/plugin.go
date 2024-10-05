@@ -23,7 +23,7 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/fatedier/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
 )
 
 type ClientPluginOptions interface {

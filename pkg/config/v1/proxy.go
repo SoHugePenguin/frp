@@ -23,9 +23,9 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/fatedier/frp/pkg/config/types"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/config/types"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
 )
 
 type ProxyTransport struct {
@@ -168,7 +168,7 @@ func (c *ProxyBaseConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 
 type TypedProxyConfig struct {
 	Type string `json:"type"`
-	ProxyConfigurer
+	ProxyConfigure
 }
 
 func (c *TypedProxyConfig) UnmarshalJSON(b []byte) error {
@@ -184,26 +184,26 @@ func (c *TypedProxyConfig) UnmarshalJSON(b []byte) error {
 	}
 
 	c.Type = typeStruct.Type
-	configurer := NewProxyConfigurerByType(ProxyType(typeStruct.Type))
-	if configurer == nil {
+	configure := NewProxyConfigureByType(ProxyType(typeStruct.Type))
+	if configure == nil {
 		return fmt.Errorf("unknown proxy type: %s", typeStruct.Type)
 	}
 	decoder := json.NewDecoder(bytes.NewBuffer(b))
 	if DisallowUnknownFields {
 		decoder.DisallowUnknownFields()
 	}
-	if err := decoder.Decode(configurer); err != nil {
+	if err := decoder.Decode(configure); err != nil {
 		return fmt.Errorf("unmarshal ProxyConfig error: %v", err)
 	}
-	c.ProxyConfigurer = configurer
+	c.ProxyConfigure = configure
 	return nil
 }
 
 func (c *TypedProxyConfig) MarshalJSON() ([]byte, error) {
-	return json.Marshal(c.ProxyConfigurer)
+	return json.Marshal(c.ProxyConfigure)
 }
 
-type ProxyConfigurer interface {
+type ProxyConfigure interface {
 	Complete(namePrefix string)
 	GetBaseConfig() *ProxyBaseConfig
 	// MarshalToMsg marshals this config into a msg.NewProxy message. This
@@ -238,17 +238,17 @@ var proxyConfigTypeMap = map[ProxyType]reflect.Type{
 	ProxyTypeSUDP:   reflect.TypeOf(SUDPProxyConfig{}),
 }
 
-func NewProxyConfigurerByType(proxyType ProxyType) ProxyConfigurer {
+func NewProxyConfigureByType(proxyType ProxyType) ProxyConfigure {
 	v, ok := proxyConfigTypeMap[proxyType]
 	if !ok {
 		return nil
 	}
-	pc := reflect.New(v).Interface().(ProxyConfigurer)
+	pc := reflect.New(v).Interface().(ProxyConfigure)
 	pc.GetBaseConfig().Type = string(proxyType)
 	return pc
 }
 
-var _ ProxyConfigurer = &TCPProxyConfig{}
+var _ ProxyConfigure = &TCPProxyConfig{}
 
 type TCPProxyConfig struct {
 	ProxyBaseConfig
@@ -268,7 +268,7 @@ func (c *TCPProxyConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	c.RemotePort = m.RemotePort
 }
 
-var _ ProxyConfigurer = &UDPProxyConfig{}
+var _ ProxyConfigure = &UDPProxyConfig{}
 
 type UDPProxyConfig struct {
 	ProxyBaseConfig
@@ -288,7 +288,7 @@ func (c *UDPProxyConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	c.RemotePort = m.RemotePort
 }
 
-var _ ProxyConfigurer = &HTTPProxyConfig{}
+var _ ProxyConfigure = &HTTPProxyConfig{}
 
 type HTTPProxyConfig struct {
 	ProxyBaseConfig
@@ -331,7 +331,7 @@ func (c *HTTPProxyConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	c.RouteByHTTPUser = m.RouteByHTTPUser
 }
 
-var _ ProxyConfigurer = &HTTPSProxyConfig{}
+var _ ProxyConfigure = &HTTPSProxyConfig{}
 
 type HTTPSProxyConfig struct {
 	ProxyBaseConfig
@@ -358,7 +358,7 @@ const (
 	TCPMultiplexerHTTPConnect TCPMultiplexerType = "httpconnect"
 )
 
-var _ ProxyConfigurer = &TCPMuxProxyConfig{}
+var _ ProxyConfigure = &TCPMuxProxyConfig{}
 
 type TCPMuxProxyConfig struct {
 	ProxyBaseConfig
@@ -392,7 +392,7 @@ func (c *TCPMuxProxyConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	c.RouteByHTTPUser = m.RouteByHTTPUser
 }
 
-var _ ProxyConfigurer = &STCPProxyConfig{}
+var _ ProxyConfigure = &STCPProxyConfig{}
 
 type STCPProxyConfig struct {
 	ProxyBaseConfig
@@ -415,7 +415,7 @@ func (c *STCPProxyConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	c.AllowUsers = m.AllowUsers
 }
 
-var _ ProxyConfigurer = &XTCPProxyConfig{}
+var _ ProxyConfigure = &XTCPProxyConfig{}
 
 type XTCPProxyConfig struct {
 	ProxyBaseConfig
@@ -438,7 +438,7 @@ func (c *XTCPProxyConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	c.AllowUsers = m.AllowUsers
 }
 
-var _ ProxyConfigurer = &SUDPProxyConfig{}
+var _ ProxyConfigure = &SUDPProxyConfig{}
 
 type SUDPProxyConfig struct {
 	ProxyBaseConfig

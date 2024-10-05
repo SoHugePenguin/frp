@@ -27,11 +27,11 @@ import (
 	"strings"
 	"time"
 
-	libio "github.com/fatedier/golib/io"
-	"github.com/fatedier/golib/pool"
+	libio "github.com/SoHugePenguin/golib/io"
+	"github.com/SoHugePenguin/golib/pool"
 
-	httppkg "github.com/fatedier/frp/pkg/util/http"
-	"github.com/fatedier/frp/pkg/util/log"
+	httppkg "github.com/SoHugePenguin/frp/pkg/util/http"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
 )
 
 var ErrNoRouteFound = errors.New("no route found")
@@ -129,7 +129,8 @@ func NewHTTPReverseProxy(option HTTPReverseProxyOptions, vhostRouter *Routers) *
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
 			log.Logf(log.WarnLevel, 1, "do http proxy request [host: %s] error: %v", req.Host, err)
 			if err != nil {
-				if e, ok := err.(net.Error); ok && e.Timeout() {
+				var e net.Error
+				if errors.As(err, &e) && e.Timeout() {
 					rw.WriteHeader(http.StatusGatewayTimeout)
 					return
 				}
@@ -261,11 +262,13 @@ func (rp *HTTPReverseProxy) connectHandler(rw http.ResponseWriter, req *http.Req
 	remote, err := rp.CreateConnection(req.Context().Value(RouteInfoKey).(*RequestRouteInfo), false)
 	if err != nil {
 		_ = NotFoundResponse().Write(client)
-		client.Close()
+		_ = client.Close()
 		return
 	}
 	_ = req.Write(remote)
-	go libio.Join(remote, client)
+
+	var inCount, outCount int64
+	go libio.Join(remote, client, &inCount, &outCount, nil, nil)
 }
 
 func parseBasicAuth(auth string) (username, password string, ok bool) {

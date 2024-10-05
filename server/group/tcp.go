@@ -19,9 +19,9 @@ import (
 	"strconv"
 	"sync"
 
-	gerr "github.com/fatedier/golib/errors"
+	gerr "github.com/SoHugePenguin/golib/errors"
 
-	"github.com/fatedier/frp/server/ports"
+	"github.com/SoHugePenguin/frp/server/ports"
 )
 
 // TCPGroupCtl manage all TCPGroups
@@ -171,7 +171,7 @@ func (tg *TCPGroup) CloseListener(ln *TCPGroupListener) {
 	}
 	if len(tg.lns) == 0 {
 		close(tg.acceptCh)
-		tg.tcpLn.Close()
+		_ = tg.tcpLn.Close()
 		tg.ctl.portManager.Release(tg.realPort)
 		tg.ctl.RemoveGroup(tg.group)
 	}

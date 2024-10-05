@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fatedier/frp/pkg/config/types"
+	"github.com/SoHugePenguin/frp/pkg/config/types"
 )
 
 const (
@@ -150,7 +150,7 @@ func (pm *Manager) isPortAvailable(port int) bool {
 		if err != nil {
 			return false
 		}
-		l.Close()
+		_ = l.Close()
 		return true
 	}
 
@@ -158,7 +158,7 @@ func (pm *Manager) isPortAvailable(port int) bool {
 	if err != nil {
 		return false
 	}
-	l.Close()
+	_ = l.Close()
 	return true
 }
 

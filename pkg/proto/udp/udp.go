@@ -15,31 +15,31 @@
 package udp
 
 import (
-	"encoding/base64"
+	"encoding/hex"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/fatedier/golib/errors"
-	"github.com/fatedier/golib/pool"
+	"github.com/SoHugePenguin/golib/errors"
+	"github.com/SoHugePenguin/golib/pool"
 
-	"github.com/fatedier/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/msg"
 )
 
 func NewUDPPacket(buf []byte, laddr, raddr *net.UDPAddr) *msg.UDPPacket {
 	return &msg.UDPPacket{
-		Content:    base64.StdEncoding.EncodeToString(buf),
+		Content:    hex.EncodeToString(buf),
 		LocalAddr:  laddr,
 		RemoteAddr: raddr,
 	}
 }
 
 func GetContent(m *msg.UDPPacket) (buf []byte, err error) {
-	buf, err = base64.StdEncoding.DecodeString(m.Content)
+	buf, err = hex.DecodeString(m.Content)
 	return
 }
 
-func ForwardUserConn(udpConn *net.UDPConn, readCh <-chan *msg.UDPPacket, sendCh chan<- *msg.UDPPacket, bufSize int) {
+func ForwardUserConn(udpConn *net.UDPConn, readCh <-chan *msg.UDPPacket, sendCh chan<- *msg.UDPPacket, bufSize int) (err error) {
 	// read
 	go func() {
 		for udpMsg := range readCh {
@@ -57,14 +57,13 @@ func ForwardUserConn(udpConn *net.UDPConn, readCh <-chan *msg.UDPPacket, sendCh 
 	for {
 		n, remoteAddr, err := udpConn.ReadFromUDP(buf)
 		if err != nil {
-			return
+			return err
 		}
 		// buf[:n] will be encoded to string, so the bytes can be reused
 		udpMsg := NewUDPPacket(buf[:n], nil, remoteAddr)
 
 		select {
 		case sendCh <- udpMsg:
-		default:
 		}
 	}
 }
@@ -80,7 +79,7 @@ func Forwarder(dstAddr *net.UDPAddr, readCh <-chan *msg.UDPPacket, sendCh chan<-
 			mu.Lock()
 			delete(udpConnMap, addr)
 			mu.Unlock()
-			udpConn.Close()
+			_ = udpConn.Close()
 		}()
 
 		buf := pool.GetBuf(bufSize)
@@ -124,7 +123,7 @@ func Forwarder(dstAddr *net.UDPAddr, readCh <-chan *msg.UDPPacket, sendCh chan<-
 
 			_, err = udpConn.Write(buf)
 			if err != nil {
-				udpConn.Close()
+				_ = udpConn.Close()
 			}
 
 			if !ok {

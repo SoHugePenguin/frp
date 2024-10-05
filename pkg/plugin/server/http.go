@@ -26,7 +26,7 @@ import (
 	"reflect"
 	"strings"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
 )
 
 type httpPlugin struct {
@@ -105,7 +105,9 @@ func (p *httpPlugin) do(ctx context.Context, r *Request, res *Response) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("do http request error code: %d", resp.StatusCode)

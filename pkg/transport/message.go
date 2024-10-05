@@ -19,19 +19,19 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/fatedier/golib/errors"
+	"github.com/SoHugePenguin/golib/errors"
 
-	"github.com/fatedier/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/msg"
 )
 
 type MessageTransporter interface {
 	Send(msg.Message) error
-	// Recv(ctx context.Context, laneKey string, msgType string) (Message, error)
-	// Do will first send msg, then recv msg with the same laneKey and specified msgType.
+	// Do Recv(ctx context.Context, laneKey string, msgType string) (Message, error)
+	// will first send msg, then recv msg with the same laneKey and specified msgType.
 	Do(ctx context.Context, req msg.Message, laneKey, recvMsgType string) (msg.Message, error)
 	// Dispatch will dispatch message to related channel registered in Do function by its message type and laneKey.
 	Dispatch(m msg.Message, laneKey string) bool
-	// Same with Dispatch but with specified message type.
+	// DispatchWithType Same with Dispatch but with specified message type.
 	DispatchWithType(m msg.Message, msgType, laneKey string) bool
 }
 

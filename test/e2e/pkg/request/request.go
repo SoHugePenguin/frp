@@ -12,10 +12,10 @@ import (
 	"strconv"
 	"time"
 
-	libnet "github.com/fatedier/golib/net"
+	libnet "github.com/SoHugePenguin/golib/net"
 
-	httppkg "github.com/fatedier/frp/pkg/util/http"
-	"github.com/fatedier/frp/test/e2e/pkg/rpc"
+	httppkg "github.com/SoHugePenguin/frp/pkg/util/http"
+	"github.com/SoHugePenguin/frp/test/e2e/pkg/rpc"
 )
 
 type Request struct {

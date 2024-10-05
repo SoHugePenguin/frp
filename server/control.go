@@ -17,6 +17,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	"github.com/SoHugePenguin/frp/server/models/mysql"
 	"net"
 	"runtime/debug"
 	"sync"
@@ -25,21 +27,21 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/fatedier/frp/pkg/auth"
-	"github.com/fatedier/frp/pkg/config"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	pkgerr "github.com/fatedier/frp/pkg/errors"
-	"github.com/fatedier/frp/pkg/msg"
-	plugin "github.com/fatedier/frp/pkg/plugin/server"
-	"github.com/fatedier/frp/pkg/transport"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/util"
-	"github.com/fatedier/frp/pkg/util/version"
-	"github.com/fatedier/frp/pkg/util/wait"
-	"github.com/fatedier/frp/pkg/util/xlog"
-	"github.com/fatedier/frp/server/controller"
-	"github.com/fatedier/frp/server/metrics"
-	"github.com/fatedier/frp/server/proxy"
+	"github.com/SoHugePenguin/frp/pkg/auth"
+	"github.com/SoHugePenguin/frp/pkg/config"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	pkgerr "github.com/SoHugePenguin/frp/pkg/errors"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	plugin "github.com/SoHugePenguin/frp/pkg/plugin/server"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/util/version"
+	"github.com/SoHugePenguin/frp/pkg/util/wait"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/server/controller"
+	"github.com/SoHugePenguin/frp/server/metrics"
+	"github.com/SoHugePenguin/frp/server/proxy"
 )
 
 type ControlManager struct {
@@ -68,7 +70,7 @@ func (cm *ControlManager) Add(runID string, ctl *Control) (old *Control) {
 	return
 }
 
-// we should make sure if it's the same control to prevent delete a new one
+// Del we should make sure if it's the same control to prevent delete a new one
 func (cm *ControlManager) Del(runID string, ctl *Control) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
@@ -88,7 +90,7 @@ func (cm *ControlManager) Close() error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	for _, ctl := range cm.ctlsByRunID {
-		ctl.Close()
+		_ = ctl.Close()
 	}
 	cm.ctlsByRunID = make(map[string]*Control)
 	return nil
@@ -150,7 +152,7 @@ type Control struct {
 	doneCh chan struct{}
 }
 
-// TODO(fatedier): Referencing the implementation of frpc, encapsulate the input parameters as SessionContext.
+// NewControl TODO(fatedier): Referencing the implementation of frpc, encapsulate the input parameters as SessionContext.
 func NewControl(
 	ctx context.Context,
 	rc *controller.ResourceController,
@@ -218,7 +220,7 @@ func (ctl *Control) Start() {
 }
 
 func (ctl *Control) Close() error {
-	ctl.conn.Close()
+	_ = ctl.conn.Close()
 	return nil
 }
 
@@ -226,7 +228,7 @@ func (ctl *Control) Replaced(newCtl *Control) {
 	xl := ctl.xl
 	xl.Infof("Replaced by client [%s]", newCtl.runID)
 	ctl.runID = ""
-	ctl.conn.Close()
+	_ = ctl.conn.Close()
 }
 
 func (ctl *Control) RegisterWorkConn(conn net.Conn) error {
@@ -248,7 +250,7 @@ func (ctl *Control) RegisterWorkConn(conn net.Conn) error {
 	}
 }
 
-// When frps get one user connection, we get one work connection from the pool and return it.
+// GetWorkConn When frps get one user connection, we get one work connection from the pool and return it.
 // If no workConn available in the pool, send message to frpc to get one or more
 // and wait until it is available.
 // return an error if wait timeout
@@ -305,13 +307,13 @@ func (ctl *Control) heartbeatWorker() {
 	go wait.Until(func() {
 		if time.Since(ctl.lastPing.Load().(time.Time)) > time.Duration(ctl.serverCfg.Transport.HeartbeatTimeout)*time.Second {
 			xl.Warnf("heartbeat timeout")
-			ctl.conn.Close()
+			_ = ctl.conn.Close()
 			return
 		}
 	}, time.Second, ctl.doneCh)
 }
 
-// block until Control closed
+// WaitClosed block until Control closed
 func (ctl *Control) WaitClosed() {
 	<-ctl.doneCh
 }
@@ -323,20 +325,20 @@ func (ctl *Control) worker() {
 	go ctl.msgDispatcher.Run()
 
 	<-ctl.msgDispatcher.Done()
-	ctl.conn.Close()
+	_ = ctl.conn.Close()
 
 	ctl.mu.Lock()
 	defer ctl.mu.Unlock()
 
 	close(ctl.workConnCh)
 	for workConn := range ctl.workConnCh {
-		workConn.Close()
+		_ = workConn.Close()
 	}
 
 	for _, pxy := range ctl.proxies {
 		pxy.Close()
 		ctl.pxyManager.Del(pxy.GetName())
-		metrics.Server.CloseProxy(pxy.GetName(), pxy.GetConfigurer().GetBaseConfig().Type)
+		metrics.Server.CloseProxy(pxy.GetName(), pxy.GetConfigure().GetBaseConfig().Type)
 
 		notifyContent := &plugin.CloseProxyContent{
 			User: plugin.UserInfo{
@@ -368,8 +370,63 @@ func (ctl *Control) registerMsgHandlers() {
 }
 
 func (ctl *Control) handleNewProxy(m msg.Message) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Debugf(r.(error).Error())
+		}
+	}()
+
+	// 大坑，首次运行没有conn，登录成功后才有，所以要等2秒。
+	if ctl.serverCfg.RunIdList[ctl.runID].Conn == nil {
+		<-time.After(2 * time.Second)
+	}
+
+	// 从创建代理开始就要判断是否为黑名单用户，减少资源浪费。
+	userToken := ctl.loginMsg.Metas["token"]
+	_, exist := ctl.serverCfg.Blacklist[userToken]
+	if exist {
+		log.Infof("用户 [%s] 在黑名单中试图建立连接，已被拒绝。", ctl.loginMsg.Metas["token"])
+		return
+	}
+
+	// 查看用户token是否存在与数据库t_user中
+	var user mysql.User
+	var myProxy mysql.Proxy
+	db := ctl.serverCfg.MysqlDBConnect
+	db.Select("id").Where("user_token = ?", userToken).First(&user)
+	if user.ID == 0 {
+		log.Errorf("用户 [%s] 不存在，已拒绝建立代理连接", userToken)
+		return
+	}
+
 	xl := ctl.xl
 	inMsg := m.(*msg.NewProxy)
+
+	// 仅允许localAddr 和 localPort 可以自定义
+	db.Where("proxy_name = ?", inMsg.ProxyName).First(&myProxy)
+	// 未从数据库查到
+	if myProxy.ID == 0 {
+		_ = msg.WriteRealtimeMsgByConfig(ctl.serverCfg.RunIdList, ctl.runID,
+			fmt.Sprintf("代理token不正确，请检查你的 [%s] 代理配置!", inMsg.ProxyName), 403)
+		log.Errorf("用户 [%s] 申请的代理连接ProxyName与数据库不匹配", userToken)
+		return
+	}
+	if inMsg.ProxyType != myProxy.ProxyType {
+		log.Errorf("用户 [%s] 申请的代理连接ProxyType与数据库不匹配", userToken)
+		return
+	}
+	if inMsg.RemotePort != myProxy.RemotePort {
+		log.Errorf("用户 [%s] 申请的代理连接RemotePort与数据库不匹配", userToken)
+		return
+	}
+
+	// success
+	log.Warnf("用户 [%s] 成功建立代理连接 {name:%s, type:%s, port:%d}",
+		userToken, myProxy.ProxyName, myProxy.ProxyType, myProxy.RemotePort)
+
+	// 流量速率限制初始化
+	inMsg.MaxInRate = myProxy.MaxInRate
+	inMsg.MaxOutRate = myProxy.MaxOutRate
 
 	content := &plugin.NewProxyContent{
 		User: plugin.UserInfo{
@@ -396,7 +453,7 @@ func (ctl *Control) handleNewProxy(m msg.Message) {
 			err, lo.FromPtr(ctl.serverCfg.DetailedErrorsToClient))
 	} else {
 		resp.RemoteAddr = remoteAddr
-		xl.Infof("new proxy [%s] type [%s] success", inMsg.ProxyName, inMsg.ProxyType)
+		//xl.Infof("new proxy [%s] type [%s] success", inMsg.ProxyName, inMsg.ProxyType)
 		metrics.Server.NewProxy(inMsg.ProxyName, inMsg.ProxyType)
 	}
 	_ = ctl.msgDispatcher.Send(resp)
@@ -454,7 +511,7 @@ func (ctl *Control) handleCloseProxy(m msg.Message) {
 }
 
 func (ctl *Control) RegisterProxy(pxyMsg *msg.NewProxy) (remoteAddr string, err error) {
-	var pxyConf v1.ProxyConfigurer
+	var pxyConf v1.ProxyConfigure
 	// Load configures from NewProxy message and validate.
 	pxyConf, err = config.NewProxyConfigurerFromMsg(pxyMsg, ctl.serverCfg)
 	if err != nil {
@@ -476,8 +533,11 @@ func (ctl *Control) RegisterProxy(pxyMsg *msg.NewProxy) (remoteAddr string, err 
 		PoolCount:          ctl.poolCount,
 		ResourceController: ctl.rc,
 		GetWorkConnFn:      ctl.GetWorkConn,
-		Configurer:         pxyConf,
+		Configure:          pxyConf,
 		ServerCfg:          ctl.serverCfg,
+		MaxInRate:          pxyMsg.MaxInRate,
+		MaxOutRate:         pxyMsg.MaxOutRate,
+		CtlRunId:           ctl.runID,
 	})
 	if err != nil {
 		return remoteAddr, err
@@ -508,6 +568,8 @@ func (ctl *Control) RegisterProxy(pxyMsg *msg.NewProxy) (remoteAddr string, err 
 		return
 	}
 
+	// 注册速率重置定时器
+	pxy.InitTimer()
 	remoteAddr, err = pxy.Run()
 	if err != nil {
 		return
@@ -545,7 +607,7 @@ func (ctl *Control) CloseProxy(closeMsg *msg.CloseProxy) (err error) {
 	delete(ctl.proxies, closeMsg.ProxyName)
 	ctl.mu.Unlock()
 
-	metrics.Server.CloseProxy(pxy.GetName(), pxy.GetConfigurer().GetBaseConfig().Type)
+	metrics.Server.CloseProxy(pxy.GetName(), pxy.GetConfigure().GetBaseConfig().Type)
 
 	notifyContent := &plugin.CloseProxyContent{
 		User: plugin.UserInfo{

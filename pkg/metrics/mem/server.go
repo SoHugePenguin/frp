@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fatedier/frp/pkg/util/log"
-	"github.com/fatedier/frp/pkg/util/metric"
-	server "github.com/fatedier/frp/server/metrics"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	"github.com/SoHugePenguin/frp/pkg/util/metric"
+	server "github.com/SoHugePenguin/frp/server/metrics"
 )
 
 var (
@@ -75,13 +75,9 @@ func (m *serverMetrics) clearUselessInfo(continuousOfflineDuration time.Duration
 	defer m.mu.Unlock()
 	total = len(m.info.ProxyStatistics)
 	for name, data := range m.info.ProxyStatistics {
-		if !data.LastCloseTime.IsZero() &&
-			data.LastStartTime.Before(data.LastCloseTime) &&
-			time.Since(data.LastCloseTime) > continuousOfflineDuration {
-			delete(m.info.ProxyStatistics, name)
-			count++
-			log.Tracef("clear proxy [%s]'s statistics data, lastCloseTime: [%s]", name, data.LastCloseTime.String())
-		}
+		delete(m.info.ProxyStatistics, name)
+		count++
+		log.Tracef("clear proxy [%s]'s statistics data, lastCloseTime: [%s]", name, data.LastCloseTime.String())
 	}
 	return count, total
 }
@@ -183,8 +179,7 @@ func (m *serverMetrics) AddTrafficOut(name string, _ string, trafficBytes int64)
 	}
 }
 
-// Get stats data api.
-
+// GetServer Get stats data api.
 func (m *serverMetrics) GetServer() *ServerStats {
 	m.mu.Lock()
 	defer m.mu.Unlock()

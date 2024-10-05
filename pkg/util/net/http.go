@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatedier/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
 )
 
 type HTTPAuthMiddleware struct {
@@ -70,7 +70,9 @@ func (gw *HTTPGzipWrapper) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Encoding", "gzip")
 	gz := gzip.NewWriter(w)
-	defer gz.Close()
+	defer func() {
+		_ = gz.Close()
+	}()
 	gzr := gzipResponseWriter{Writer: gz, ResponseWriter: w}
 	gw.h.ServeHTTP(gzr, r)
 }

@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"os"
 
-	"github.com/fatedier/golib/log"
+	"github.com/SoHugePenguin/golib/log"
 )
 
 var (
@@ -40,7 +40,7 @@ func init() {
 }
 
 func InitLogger(logPath string, levelStr string, maxDays int, disableLogColor bool) {
-	options := []log.Option{}
+	var options []log.Option
 	if logPath == "console" {
 		if !disableLogColor {
 			options = append(options,

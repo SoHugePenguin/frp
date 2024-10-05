@@ -22,12 +22,12 @@ import (
 	"io"
 	"net"
 
-	libio "github.com/fatedier/golib/io"
+	libio "github.com/SoHugePenguin/golib/io"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/transport"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
 func init() {
@@ -71,7 +71,8 @@ func (p *TLS2RawPlugin) Handle(ctx context.Context, conn io.ReadWriteCloser, rea
 		return
 	}
 
-	libio.Join(tlsConn, rawConn)
+	var inCount, outCount int64
+	libio.Join(tlsConn, rawConn, &inCount, &outCount, nil, nil)
 }
 
 func (p *TLS2RawPlugin) Name() string {

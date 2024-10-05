@@ -19,11 +19,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatedier/golib/errors"
+	"github.com/SoHugePenguin/golib/errors"
 
-	"github.com/fatedier/frp/pkg/util/log"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
 type RouteInfo string
@@ -122,7 +122,7 @@ type RouteConfig struct {
 	CreateConnByEndpointFn CreateConnByEndpointFunc
 }
 
-// listen for a new domain name, if rewriteHost is not empty and rewriteHost func is not nil,
+// Listen listen for a new domain name, if rewriteHost is not empty and rewriteHost func is not nil,
 // then rewrite the host header to rewriteHost
 func (v *Muxer) Listen(ctx context.Context, cfg *RouteConfig) (l *Listener, err error) {
 	l = &Listener{
@@ -271,7 +271,7 @@ func (l *Listener) Accept() (net.Conn, error) {
 	xl := xlog.FromContextSafe(l.ctx)
 	conn, ok := <-l.accept
 	if !ok {
-		return nil, fmt.Errorf("Listener closed")
+		return nil, fmt.Errorf("listener closed")
 	}
 
 	// if rewriteHost func is exist

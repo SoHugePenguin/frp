@@ -23,14 +23,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fatedier/golib/errors"
+	"github.com/SoHugePenguin/golib/errors"
 
-	"github.com/fatedier/frp/client/event"
-	"github.com/fatedier/frp/client/health"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/transport"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/client/event"
+	"github.com/SoHugePenguin/frp/client/health"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
 const (
@@ -49,11 +49,11 @@ var (
 )
 
 type WorkingStatus struct {
-	Name  string             `json:"name"`
-	Type  string             `json:"type"`
-	Phase string             `json:"status"`
-	Err   string             `json:"err"`
-	Cfg   v1.ProxyConfigurer `json:"cfg"`
+	Name  string            `json:"name"`
+	Type  string            `json:"type"`
+	Phase string            `json:"status"`
+	Err   string            `json:"err"`
+	Cfg   v1.ProxyConfigure `json:"cfg"`
 
 	// Got from server.
 	RemoteAddr string `json:"remote_addr"`
@@ -87,7 +87,7 @@ type Wrapper struct {
 
 func NewWrapper(
 	ctx context.Context,
-	cfg v1.ProxyConfigurer,
+	cfg v1.ProxyConfigure,
 	clientCfg *v1.ClientCommonConfig,
 	eventHandler event.Handler,
 	msgTransporter transport.MessageTransporter,
@@ -221,7 +221,7 @@ func (pw *Wrapper) checkWorker() {
 		select {
 		case <-pw.closeCh:
 			return
-		case <-time.After(statusCheckInterval):
+		case <-time.After(statusCheckInterval): // 三秒一次的存活检测
 		case <-pw.healthNotifyCh:
 		}
 	}
@@ -260,7 +260,7 @@ func (pw *Wrapper) InWorkConn(workConn net.Conn, m *msg.StartWorkConn) {
 		xl.Debugf("start a new work connection, localAddr: %s remoteAddr: %s", workConn.LocalAddr().String(), workConn.RemoteAddr().String())
 		go pxy.InWorkConn(workConn, m)
 	} else {
-		workConn.Close()
+		_ = workConn.Close()
 	}
 }
 

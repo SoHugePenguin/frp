@@ -15,10 +15,18 @@
 package v1
 
 import (
+	"fmt"
+	"github.com/SoHugePenguin/frp/pkg/config/types"
+	ctl "github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
+	mysql2 "github.com/SoHugePenguin/frp/server/models/mysql"
 	"github.com/samber/lo"
-
-	"github.com/fatedier/frp/pkg/config/types"
-	"github.com/fatedier/frp/pkg/util/util"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"os"
+	"time"
 )
 
 type ServerConfig struct {
@@ -96,6 +104,18 @@ type ServerConfig struct {
 	AllowPorts []types.PortsRange `json:"allowPorts,omitempty"`
 
 	HTTPPlugins []HTTPPluginOptions `json:"httpPlugins,omitempty"`
+
+	// penguin add
+	Blacklist map[string]struct{}
+	// runid -> user_token
+	RunIdList       map[string]*ctl.ConnMsg
+	MysqlAddr       string `json:"mysqlAddr,omitempty"`
+	MysqlPort       int    `json:"mysqlPort,omitempty"`
+	MysqlUser       string `json:"mysqlUser,omitempty"`
+	MysqlPassword   string `json:"mysqlPassword,omitempty"`
+	MysqlDatabase   string `json:"MysqlDatabase,omitempty"`
+	MysqlDBConnect  *gorm.DB
+	RealtimeMsgPort int `json:"realtimeMsgPort,omitempty"`
 }
 
 func (c *ServerConfig) Complete() {
@@ -120,6 +140,68 @@ func (c *ServerConfig) Complete() {
 	c.UserConnTimeout = util.EmptyOr(c.UserConnTimeout, 10)
 	c.UDPPacketSize = util.EmptyOr(c.UDPPacketSize, 1500)
 	c.NatHoleAnalysisDataReserveHours = util.EmptyOr(c.NatHoleAnalysisDataReserveHours, 7*24)
+	// penguin add
+	c.Blacklist = map[string]struct{}{}
+	c.RunIdList = map[string]*ctl.ConnMsg{}
+
+	var err error
+	fmt.Println("正在尝试连接数据库中: ", c.MysqlAddr, ":", c.MysqlPort)
+	c.MysqlDBConnect, err = c.connectMysql()
+	if err != nil {
+		fmt.Println("数据库连接失败: ", err)
+		os.Exit(0)
+	}
+
+	// init mysql timer
+	go func() {
+		ticker := time.NewTicker(2 * time.Second) // 每分钟触发一次
+		defer ticker.Stop()                       // 程序退出时停止定时器
+
+		for {
+			select {
+			case <-ticker.C:
+				// 确保无论发生什么都持续运行timer
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Errorf("mysql operate error: %s", r)
+						}
+					}()
+					var users []mysql2.User
+					var db = c.MysqlDBConnect
+					db.Where("total_traffic_usage > total_traffic_quota").Find(&users)
+					for i := range users {
+						_, exists := c.Blacklist[users[i].UserToken]
+						if !exists {
+							c.Blacklist[users[i].UserToken] = struct{}{}
+							log.Infof("%+v流量已耗尽，已加入黑名单", users[i].UserToken)
+						}
+					}
+				}()
+			}
+		}
+	}()
+
+	// penguin add
+}
+
+func (c *ServerConfig) connectMysql() (*gorm.DB, error) {
+	url := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		c.MysqlUser, c.MysqlPassword, c.MysqlAddr, c.MysqlPort, c.MysqlDatabase)
+
+	db, err := gorm.Open(mysql.Open(url), &gorm.Config{
+		Logger: logger.Discard, // 关闭日志
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	sqlDB.SetMaxIdleConns(10) // 最大空闲连接数
+	return db, nil
 }
 
 type AuthServerConfig struct {

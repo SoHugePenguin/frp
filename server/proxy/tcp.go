@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"strconv"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
 )
 
 func init() {
@@ -35,7 +35,7 @@ type TCPProxy struct {
 }
 
 func NewTCPProxy(baseProxy *BaseProxy) Proxy {
-	unwrapped, ok := baseProxy.GetConfigurer().(*v1.TCPProxyConfig)
+	unwrapped, ok := baseProxy.GetConfigure().(*v1.TCPProxyConfig)
 	if !ok {
 		return nil
 	}
@@ -57,7 +57,7 @@ func (pxy *TCPProxy) Run() (remoteAddr string, err error) {
 		}
 		defer func() {
 			if err != nil {
-				l.Close()
+				_ = l.Close()
 			}
 		}()
 		pxy.realBindPort = realBindPort
@@ -79,7 +79,7 @@ func (pxy *TCPProxy) Run() (remoteAddr string, err error) {
 			return
 		}
 		pxy.listeners = append(pxy.listeners, listener)
-		xl.Infof("tcp proxy listen port [%d]", pxy.cfg.RemotePort)
+		//xl.Infof("tcp proxy listen port [%d]", pxy.cfg.RemotePort)
 	}
 
 	pxy.cfg.RemotePort = pxy.realBindPort

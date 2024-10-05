@@ -75,7 +75,7 @@ func (l *KCPListener) Accept() (net.Conn, error) {
 func (l *KCPListener) Close() error {
 	if !l.closeFlag {
 		l.closeFlag = true
-		l.listener.Close()
+		_ = l.listener.Close()
 	}
 	return nil
 }

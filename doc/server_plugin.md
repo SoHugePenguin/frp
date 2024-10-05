@@ -3,7 +3,8 @@
 frp server plugin is aimed to extend frp's ability without modifying the Golang code.
 
 An external server should run in a different process receiving RPC calls from frps.
-Before frps is doing some operations, it will send RPC requests to notify the external RPC server and act according to its response.
+Before frps is doing some operations, it will send RPC requests to notify the external RPC server and act according to
+its response.
 
 ### RPC request
 
@@ -233,7 +234,8 @@ path = "/handler"
 ops = ["NewProxy"]
 ```
 
-- addr: the address where the external RPC service listens. Defaults to http. For https, specify the schema: `addr = "https://127.0.0.1:9001"`.
+- addr: the address where the external RPC service listens. Defaults to http. For https, specify the
+  schema: `addr = "https://127.0.0.1:9001"`.
 - path: http request url path for the POST request.
 - ops: operations plugin needs to handle (e.g. "Login", "NewProxy", ...).
 - tlsVerify: When the schema is https, we verify by default. Set this value to false if you want to skip verification.

@@ -20,7 +20,7 @@ import (
 
 	"github.com/samber/lo"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
 )
 
 func ValidateServerConfig(c *v1.ServerConfig) (Warning, error) {

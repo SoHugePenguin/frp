@@ -22,7 +22,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
 )
 
 func validateProxyBaseConfigForClient(c *v1.ProxyBaseConfig) error {
@@ -99,7 +99,7 @@ func validateDomainConfigForServer(c *v1.DomainConfig, s *v1.ServerConfig) error
 	return nil
 }
 
-func ValidateProxyConfigurerForClient(c v1.ProxyConfigurer) error {
+func ValidateProxyConfigurerForClient(c v1.ProxyConfigure) error {
 	base := c.GetBaseConfig()
 	if err := validateProxyBaseConfigForClient(base); err != nil {
 		return err
@@ -165,7 +165,7 @@ func validateSUDPProxyConfigForClient(c *v1.SUDPProxyConfig) error {
 	return nil
 }
 
-func ValidateProxyConfigurerForServer(c v1.ProxyConfigurer, s *v1.ServerConfig) error {
+func ValidateProxyConfigurerForServer(c v1.ProxyConfigure, s *v1.ServerConfig) error {
 	base := c.GetBaseConfig()
 	if err := validateProxyBaseConfigForServer(base); err != nil {
 		return err

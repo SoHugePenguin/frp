@@ -38,6 +38,8 @@ const (
 	TypeNatHoleResp        = 'm'
 	TypeNatHoleSid         = '5'
 	TypeNatHoleReport      = '6'
+	TypeMessageLogin       = '7'
+	TypeRealTimeMsg        = '8'
 )
 
 var msgTypeMap = map[byte]interface{}{
@@ -59,6 +61,8 @@ var msgTypeMap = map[byte]interface{}{
 	TypeNatHoleResp:        NatHoleResp{},
 	TypeNatHoleSid:         NatHoleSid{},
 	TypeNatHoleReport:      NatHoleReport{},
+	TypeMessageLogin:       MessageLogin{},
+	TypeRealTimeMsg:        RealTimeMsg{},
 }
 
 var TypeNameNatHoleResp = reflect.TypeOf(&NatHoleResp{}).Elem().Name()
@@ -72,7 +76,7 @@ type ClientSpec struct {
 	AlwaysAuthPass bool `json:"always_auth_pass,omitempty"`
 }
 
-// When frpc start, client send this message to login to server.
+// Login When frpc start, client send this message to login to server.
 type Login struct {
 	Version      string            `json:"version,omitempty"`
 	Hostname     string            `json:"hostname,omitempty"`
@@ -97,7 +101,19 @@ type LoginResp struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// When frpc login success, send this message to frps for running a new proxy.
+// RealTimeMsg penguin add
+type RealTimeMsg struct {
+	Version string `json:"version,omitempty"`
+	Text    string `json:"text,omitempty"`
+	Code    int    `json:"code,omitempty"`
+}
+
+type MessageLogin struct {
+	Version string `json:"version,omitempty"`
+	RunID   string `json:"run_id,omitempty"`
+}
+
+// NewProxy When frpc login success, send this message to frps for running a new proxy.
 type NewProxy struct {
 	ProxyName          string            `json:"proxy_name,omitempty"`
 	ProxyType          string            `json:"proxy_type,omitempty"`
@@ -130,6 +146,10 @@ type NewProxy struct {
 
 	// tcpmux
 	Multiplexer string `json:"multiplexer,omitempty"`
+
+	// limit rate
+	MaxInRate  int64 `json:"max_in_rate,omitempty"`
+	MaxOutRate int64 `json:"max_out_rate,omitempty"`
 }
 
 type NewProxyResp struct {

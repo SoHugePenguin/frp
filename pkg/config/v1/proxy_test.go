@@ -44,6 +44,6 @@ func TestUnmarshalTypedProxyConfig(t *testing.T) {
 	err := json.Unmarshal([]byte(strs), &proxyConfigs)
 	require.NoError(err)
 
-	require.IsType(&TCPProxyConfig{}, proxyConfigs.Proxies[0].ProxyConfigurer)
-	require.IsType(&HTTPProxyConfig{}, proxyConfigs.Proxies[1].ProxyConfigurer)
+	require.IsType(&TCPProxyConfig{}, proxyConfigs.Proxies[0].ProxyConfigure)
+	require.IsType(&HTTPProxyConfig{}, proxyConfigs.Proxies[1].ProxyConfigure)
 }

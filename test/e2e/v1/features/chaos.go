@@ -6,7 +6,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 
-	"github.com/fatedier/frp/test/e2e/framework"
+	"github.com/SoHugePenguin/frp/test/e2e/framework"
 )
 
 var _ = ginkgo.Describe("[Feature: Chaos]", func() {

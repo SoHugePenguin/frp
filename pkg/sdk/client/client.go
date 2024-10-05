@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fatedier/frp/client"
-	httppkg "github.com/fatedier/frp/pkg/util/http"
+	"github.com/SoHugePenguin/frp/client"
+	httppkg "github.com/SoHugePenguin/frp/pkg/util/http"
 )
 
 type Client struct {
@@ -127,7 +127,9 @@ func (c *Client) do(req *http.Request) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("api status code [%d]", resp.StatusCode)

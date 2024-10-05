@@ -20,12 +20,12 @@ import (
 	"strconv"
 	"time"
 
-	libio "github.com/fatedier/golib/io"
+	libio "github.com/SoHugePenguin/golib/io"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/util/util"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
 type STCPVisitor struct {
@@ -77,14 +77,18 @@ func (sv *STCPVisitor) internalConnWorker() {
 
 func (sv *STCPVisitor) handleConn(userConn net.Conn) {
 	xl := xlog.FromContextSafe(sv.ctx)
-	defer userConn.Close()
+	defer func() {
+		_ = userConn.Close()
+	}()
 
 	xl.Debugf("get a new stcp user connection")
 	visitorConn, err := sv.helper.ConnectServer()
 	if err != nil {
 		return
 	}
-	defer visitorConn.Close()
+	defer func() {
+		_ = visitorConn.Close()
+	}()
 
 	now := time.Now().Unix()
 	newVisitorConnMsg := &msg.NewVisitorConn{
@@ -131,5 +135,6 @@ func (sv *STCPVisitor) handleConn(userConn net.Conn) {
 		defer recycleFn()
 	}
 
-	libio.Join(userConn, remote)
+	var inCount, outCount int64
+	libio.Join(userConn, remote, &inCount, &outCount, nil, nil)
 }

@@ -25,8 +25,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
 )
 
 func init() {
@@ -80,7 +80,7 @@ func (sp *StaticFilePlugin) Name() string {
 }
 
 func (sp *StaticFilePlugin) Close() error {
-	sp.s.Close()
-	sp.l.Close()
+	_ = sp.s.Close()
+	_ = sp.l.Close()
 	return nil
 }

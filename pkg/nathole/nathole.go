@@ -24,17 +24,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatedier/golib/pool"
+	"github.com/SoHugePenguin/golib/pool"
 	"golang.org/x/net/ipv4"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/transport"
-	"github.com/fatedier/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
 )
 
 var (
-	// mode 0: simple detect mode, usually for both EasyNAT or HardNAT & EasyNAT(Public Network)
+	// SupportedModes mode 0: simple detect mode, usually for both EasyNAT or HardNAT & EasyNAT(Public Network)
 	// a. receiver sends detect message with low TTL
 	// b. sender sends normal detect message to receiver
 	// c. receiver receives detect message and sends back a message to sender

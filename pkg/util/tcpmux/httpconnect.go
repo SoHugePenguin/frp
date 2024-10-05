@@ -22,10 +22,10 @@ import (
 	"net/http"
 	"time"
 
-	libnet "github.com/fatedier/golib/net"
+	libnet "github.com/SoHugePenguin/golib/net"
 
-	httppkg "github.com/fatedier/frp/pkg/util/http"
-	"github.com/fatedier/frp/pkg/util/vhost"
+	httppkg "github.com/SoHugePenguin/frp/pkg/util/http"
+	"github.com/SoHugePenguin/frp/pkg/util/vhost"
 )
 
 type HTTPConnectTCPMuxer struct {
@@ -73,7 +73,9 @@ func (muxer *HTTPConnectTCPMuxer) sendConnectResponse(c net.Conn, _ map[string]s
 	}
 	res := httppkg.OkResponse()
 	if res.Body != nil {
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 	}
 	return res.Write(c)
 }

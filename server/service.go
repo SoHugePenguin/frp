@@ -19,6 +19,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/SoHugePenguin/frp/server/models"
+	"github.com/SoHugePenguin/frp/server/models/mysql"
 	"io"
 	"net"
 	"net/http"
@@ -26,34 +28,35 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fatedier/golib/crypto"
-	"github.com/fatedier/golib/net/mux"
+	"github.com/SoHugePenguin/golib/crypto"
+	"github.com/SoHugePenguin/golib/net/mux"
 	fmux "github.com/hashicorp/yamux"
-	quic "github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go"
 	"github.com/samber/lo"
 
-	"github.com/fatedier/frp/pkg/auth"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	modelmetrics "github.com/fatedier/frp/pkg/metrics"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/nathole"
-	plugin "github.com/fatedier/frp/pkg/plugin/server"
-	"github.com/fatedier/frp/pkg/ssh"
-	"github.com/fatedier/frp/pkg/transport"
-	httppkg "github.com/fatedier/frp/pkg/util/http"
-	"github.com/fatedier/frp/pkg/util/log"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/tcpmux"
-	"github.com/fatedier/frp/pkg/util/util"
-	"github.com/fatedier/frp/pkg/util/version"
-	"github.com/fatedier/frp/pkg/util/vhost"
-	"github.com/fatedier/frp/pkg/util/xlog"
-	"github.com/fatedier/frp/server/controller"
-	"github.com/fatedier/frp/server/group"
-	"github.com/fatedier/frp/server/metrics"
-	"github.com/fatedier/frp/server/ports"
-	"github.com/fatedier/frp/server/proxy"
-	"github.com/fatedier/frp/server/visitor"
+	"github.com/SoHugePenguin/frp/pkg/auth"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	modelmetrics "github.com/SoHugePenguin/frp/pkg/metrics"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	ctl_ "github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/nathole"
+	plugin "github.com/SoHugePenguin/frp/pkg/plugin/server"
+	"github.com/SoHugePenguin/frp/pkg/ssh"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	httppkg "github.com/SoHugePenguin/frp/pkg/util/http"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/tcpmux"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/util/version"
+	"github.com/SoHugePenguin/frp/pkg/util/vhost"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/server/controller"
+	"github.com/SoHugePenguin/frp/server/group"
+	"github.com/SoHugePenguin/frp/server/metrics"
+	"github.com/SoHugePenguin/frp/server/ports"
+	"github.com/SoHugePenguin/frp/server/proxy"
+	"github.com/SoHugePenguin/frp/server/visitor"
 )
 
 const (
@@ -64,20 +67,23 @@ const (
 func init() {
 	crypto.DefaultSalt = "frp"
 	// Disable quic-go's receive buffer warning.
-	os.Setenv("QUIC_GO_DISABLE_RECEIVE_BUFFER_WARNING", "true")
+	_ = os.Setenv("QUIC_GO_DISABLE_RECEIVE_BUFFER_WARNING", "true")
 	// Disable quic-go's ECN support by default. It may cause issues on certain operating systems.
 	if os.Getenv("QUIC_GO_DISABLE_ECN") == "" {
-		os.Setenv("QUIC_GO_DISABLE_ECN", "true")
+		_ = os.Setenv("QUIC_GO_DISABLE_ECN", "true")
 	}
 }
 
-// Server service
+// Service Server service
 type Service struct {
 	// Dispatch connections to different handlers listen on same port
 	muxer *mux.Mux
 
 	// Accept connections from client
 	listener net.Listener
+
+	// penguin add
+	realTimeListener net.Listener
 
 	// Accept connections using kcp
 	kcpListener net.Listener
@@ -331,6 +337,20 @@ func NewService(cfg *v1.ServerConfig) (*Service, error) {
 		return int(data[0]) == netpkg.FRPTLSHeadByte || int(data[0]) == 0x16
 	})
 
+	// penguin realtime msg listener
+	address = net.JoinHostPort("0.0.0.0", strconv.Itoa(svr.cfg.RealtimeMsgPort))
+	rLn, rErr := net.Listen("tcp", address)
+	if rErr != nil {
+		return nil, fmt.Errorf("create server listener error, %v", rErr)
+	}
+	svr.muxer = mux.NewMux(rLn)
+	svr.muxer.SetKeepAlive(time.Duration(cfg.Transport.TCPKeepAlive) * time.Second)
+	go func() {
+		_ = svr.muxer.Serve()
+	}()
+	svr.realTimeListener = svr.muxer.DefaultListener()
+	log.Infof("frps penguin msg listen on %s", address)
+
 	// Create nat hole controller.
 	nc, err := nathole.NewController(time.Duration(cfg.NatHoleAnalysisDataReserveHours) * time.Hour)
 	if err != nil {
@@ -374,37 +394,41 @@ func (svr *Service) Run(ctx context.Context) {
 		go svr.sshTunnelGateway.Run()
 	}
 
+	// penguin init msg listener
+	go svr.HandlePenguinRealtimeMsgListener(svr.realTimeListener)
+
+	// 先登录获取run_id后登录msg server
 	svr.HandleListener(svr.listener, false)
 
 	<-svr.ctx.Done()
 	// service context may not be canceled by svr.Close(), we should call it here to release resources
 	if svr.listener != nil {
-		svr.Close()
+		_ = svr.Close()
 	}
 }
 
 func (svr *Service) Close() error {
 	if svr.kcpListener != nil {
-		svr.kcpListener.Close()
+		_ = svr.kcpListener.Close()
 		svr.kcpListener = nil
 	}
 	if svr.quicListener != nil {
-		svr.quicListener.Close()
+		_ = svr.quicListener.Close()
 		svr.quicListener = nil
 	}
 	if svr.websocketListener != nil {
-		svr.websocketListener.Close()
+		_ = svr.websocketListener.Close()
 		svr.websocketListener = nil
 	}
 	if svr.tlsListener != nil {
-		svr.tlsListener.Close()
+		_ = svr.tlsListener.Close()
 		svr.tlsConfig = nil
 	}
 	if svr.listener != nil {
-		svr.listener.Close()
+		_ = svr.listener.Close()
 		svr.listener = nil
 	}
-	svr.ctlManager.Close()
+	_ = svr.ctlManager.Close()
 	if svr.cancel != nil {
 		svr.cancel()
 	}
@@ -413,22 +437,52 @@ func (svr *Service) Close() error {
 
 func (svr *Service) handleConnection(ctx context.Context, conn net.Conn, internal bool) {
 	xl := xlog.FromContextSafe(ctx)
-
 	var (
 		rawMsg msg.Message
 		err    error
 	)
-
 	_ = conn.SetReadDeadline(time.Now().Add(connReadTimeout))
 	if rawMsg, err = msg.ReadMsg(conn); err != nil {
 		log.Tracef("Failed to read message: %v", err)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 	_ = conn.SetReadDeadline(time.Time{})
 
 	switch m := rawMsg.(type) {
 	case *msg.Login:
+		// 登录失败拒绝建立连接
+		userToken := m.Metas["token"]
+		_, exist := svr.cfg.Blacklist[userToken]
+		if exist {
+			_ = msg.WriteMsg(conn, &msg.LoginResp{
+				Version: version.Full(),
+				Error: util.GenerateResponseErrorString("403 gg",
+					models.InitError("没流量了你用个屁！给你客户端掐咯。", 403),
+					lo.FromPtr(svr.cfg.DetailedErrorsToClient)),
+			})
+			log.Infof("用户 [%s] 在黑名单中试图建立连接，已被拒绝。", m.Metas["token"])
+			_ = conn.Close()
+			return
+		}
+
+		// 查看用户token是否存在与数据库t_user中
+		var user mysql.User
+		db := svr.cfg.MysqlDBConnect
+		db.Select("id").Where("user_token = ?", userToken).First(&user)
+		if user.ID == 0 {
+			log.Errorf("用户 [%s] 不存在，已拒绝建立代理连接", userToken)
+			// 发送错误到客户端(配合polarClient)
+			_ = msg.WriteMsg(conn, &msg.LoginResp{
+				Version: version.Full(),
+				Error: util.GenerateResponseErrorString("401~",
+					models.InitError("没登录成功你用个屁！", 401),
+					lo.FromPtr(svr.cfg.DetailedErrorsToClient)),
+			})
+			_ = conn.Close()
+			return
+		}
+
 		// server plugin hook
 		content := &plugin.LoginContent{
 			Login:         *m,
@@ -437,22 +491,23 @@ func (svr *Service) handleConnection(ctx context.Context, conn net.Conn, interna
 		retContent, err := svr.pluginManager.Login(content)
 		if err == nil {
 			m = &retContent.Login
-			err = svr.RegisterControl(conn, m, internal)
+			// runID 经过这里时回执给客户端，所以要在这里处理runID -> userToken map
+			err = svr.RegisterControl(conn, m, internal, userToken)
 		}
 
 		// If login failed, send error message there.
-		// Otherwise send success message in control's work goroutine.
+		// Otherwise, send success message in control's work goroutine.
 		if err != nil {
 			xl.Warnf("register control error: %v", err)
 			_ = msg.WriteMsg(conn, &msg.LoginResp{
 				Version: version.Full(),
 				Error:   util.GenerateResponseErrorString("register control error", err, lo.FromPtr(svr.cfg.DetailedErrorsToClient)),
 			})
-			conn.Close()
+			_ = conn.Close()
 		}
 	case *msg.NewWorkConn:
 		if err := svr.RegisterWorkConn(conn, m); err != nil {
-			conn.Close()
+			_ = conn.Close()
 		}
 	case *msg.NewVisitorConn:
 		if err = svr.RegisterVisitorConn(conn, m); err != nil {
@@ -461,7 +516,7 @@ func (svr *Service) handleConnection(ctx context.Context, conn net.Conn, interna
 				ProxyName: m.ProxyName,
 				Error:     util.GenerateResponseErrorString("register visitor conn error", err, lo.FromPtr(svr.cfg.DetailedErrorsToClient)),
 			})
-			conn.Close()
+			_ = conn.Close()
 		} else {
 			_ = msg.WriteMsg(conn, &msg.NewVisitorConnResp{
 				ProxyName: m.ProxyName,
@@ -470,7 +525,7 @@ func (svr *Service) handleConnection(ctx context.Context, conn net.Conn, interna
 		}
 	default:
 		log.Warnf("Error message type for the new connection [%s]", conn.RemoteAddr().String())
-		conn.Close()
+		_ = conn.Close()
 	}
 }
 
@@ -499,7 +554,7 @@ func (svr *Service) HandleListener(l net.Listener, internal bool) {
 			c, isTLS, custom, err = netpkg.CheckAndEnableTLSServerConnWithTimeout(c, svr.tlsConfig, forceTLS, connReadTimeout)
 			if err != nil {
 				log.Warnf("CheckAndEnableTLSServerConnWithTimeout error: %v", err)
-				originConn.Close()
+				_ = originConn.Close()
 				continue
 			}
 			log.Tracef("check TLS connection success, isTLS: %v custom: %v internal: %v", isTLS, custom, internal)
@@ -515,7 +570,7 @@ func (svr *Service) HandleListener(l net.Listener, internal bool) {
 				session, err := fmux.Server(frpConn, fmuxCfg)
 				if err != nil {
 					log.Warnf("Failed to create mux connection: %v", err)
-					frpConn.Close()
+					_ = frpConn.Close()
 					return
 				}
 
@@ -523,7 +578,7 @@ func (svr *Service) HandleListener(l net.Listener, internal bool) {
 					stream, err := session.AcceptStream()
 					if err != nil {
 						log.Debugf("Accept new mux stream error: %v", err)
-						session.Close()
+						_ = session.Close()
 						return
 					}
 					go svr.handleConnection(ctx, stream, internal)
@@ -532,6 +587,41 @@ func (svr *Service) HandleListener(l net.Listener, internal bool) {
 				svr.handleConnection(ctx, frpConn, internal)
 			}
 		}(ctx, c)
+	}
+}
+
+func (svr *Service) HandlePenguinRealtimeMsgListener(l net.Listener) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Errorf(err.(error).Error())
+		}
+	}()
+
+	for {
+		// 监听新的客户端连接
+		conn, err := l.Accept()
+		if err != nil {
+			log.Warnf("[penguin msg] Listener for incoming connections from client closed")
+			continue
+		}
+
+		var runIDMsg msg.MessageLogin
+		err = msg.ReadMsgInto(conn, &runIDMsg)
+		if err != nil {
+			log.Errorf("[penguin msg] 读取客户端配置文件失败: %v", err)
+			continue
+		}
+		msgConn, exist := svr.cfg.RunIdList[runIDMsg.RunID]
+		if !exist {
+			continue
+		}
+		// 绑定conn 方便在任何地方都可以对客户端通讯
+		if svr.cfg.RunIdList[runIDMsg.RunID].Conn != nil {
+			_ = svr.cfg.RunIdList[runIDMsg.RunID].Conn.Close()
+		}
+		svr.cfg.RunIdList[runIDMsg.RunID].Conn = conn
+		msg.WriteRealtimeMsg(conn, "成功连接上msg Server, 通讯服务正常 runID: "+runIDMsg.RunID, 665)
+		log.Infof("用户 [%s] 成功连接 msg Server, runID: [%s]", msgConn.Token, runIDMsg.RunID)
 	}
 }
 
@@ -558,7 +648,7 @@ func (svr *Service) HandleQUICListener(l *quic.Listener) {
 	}
 }
 
-func (svr *Service) RegisterControl(ctlConn net.Conn, loginMsg *msg.Login, internal bool) error {
+func (svr *Service) RegisterControl(ctlConn net.Conn, loginMsg *msg.Login, internal bool, userToken string) error {
 	// If client's RunID is empty, it's a new client, we just create a new controller.
 	// Otherwise, we check if there is one controller has the same run id. If so, we release previous controller and start new one.
 	var err error
@@ -587,6 +677,44 @@ func (svr *Service) RegisterControl(ctlConn net.Conn, loginMsg *msg.Login, inter
 
 	// TODO(fatedier): use SessionContext
 	ctl, err := NewControl(ctx, svr.rc, svr.pxyManager, svr.pluginManager, authVerifier, ctlConn, !internal, loginMsg, svr.cfg)
+
+	// penguin init timer test alive
+	// 确保每个控制器只注册一个监视
+	_, exist := svr.cfg.RunIdList[ctl.runID]
+	if !exist {
+		go func() {
+			defer func() {
+				delete(svr.cfg.RunIdList, ctl.runID)
+				_ = ctl.Close()
+			}()
+
+			// 注册客户端的run_id到map中
+			svr.cfg.RunIdList[ctl.runID] = &ctl_.ConnMsg{
+				Token: userToken,
+			}
+
+			for {
+				select {
+				case <-time.After(5 * time.Second):
+					_, exist := svr.cfg.Blacklist[userToken]
+					if exist {
+						_ = msg.WriteRealtimeMsgByConfig(svr.cfg.RunIdList, loginMsg.RunID, "流量已耗尽，您已无法使用内网穿透，请查看仪表盘或咨询管理员。", 403)
+						log.Warnf("用户 [%s] 建立控制器，但流量耗尽，已被强制关闭", loginMsg.Metas["token"])
+						_ = ctl.Close()
+						return
+					}
+					// 心跳检测
+					var heartErr error
+					heartErr = msg.WriteRealtimeMsgByConfig(svr.cfg.RunIdList, loginMsg.RunID, "", 666)
+					if heartErr != nil {
+						log.Errorf("用户 [%s] 与msg server的tcp连接中断！", loginMsg.Metas["token"])
+						return
+					}
+				}
+			}
+		}()
+	}
+
 	if err != nil {
 		xl.Warnf("create new controller error: %v", err)
 		// don't return detailed errors to client
@@ -631,6 +759,36 @@ func (svr *Service) RegisterWorkConn(workConn net.Conn, newMsg *msg.NewWorkConn)
 		newMsg = &retContent.NewWorkConn
 		// Check auth.
 		err = ctl.authVerifier.VerifyNewWorkConn(newMsg)
+
+		// flow test
+		_, exist = svr.cfg.Blacklist[content.User.Metas["token"]]
+		if exist {
+			_ = workConn.Close()
+		} else {
+			go func(c net.Conn) {
+				defer func(c net.Conn) {
+					_ = c.Close()
+				}(c)
+				ticker := time.NewTicker(5 * time.Second)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ticker.C:
+						// 写入空字节触发心跳机制
+						_, err := c.Write([]byte(""))
+						if err != nil {
+							return
+						}
+						// 查询黑名单
+						_, exist = svr.cfg.Blacklist[content.User.Metas["token"]]
+						if exist {
+							// 流量没了的情况下 直接杀死！
+							return
+						}
+					}
+				}
+			}(workConn)
+		}
 	}
 	if err != nil {
 		xl.Warnf("invalid NewWorkConn with run id [%s]", newMsg.RunID)

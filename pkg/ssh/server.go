@@ -25,24 +25,24 @@ import (
 	"sync"
 	"time"
 
-	libio "github.com/fatedier/golib/io"
+	libio "github.com/SoHugePenguin/golib/io"
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/fatedier/frp/client/proxy"
-	"github.com/fatedier/frp/pkg/config"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/util/log"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/util"
-	"github.com/fatedier/frp/pkg/util/xlog"
-	"github.com/fatedier/frp/pkg/virtual"
+	"github.com/SoHugePenguin/frp/client/proxy"
+	"github.com/SoHugePenguin/frp/pkg/config"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/pkg/virtual"
 )
 
 const (
-	// https://datatracker.ietf.org/doc/html/rfc4254#page-16
+	// ChannelTypeServerOpenChannel https://datatracker.ietf.org/doc/html/rfc4254#page-16
 	ChannelTypeServerOpenChannel = "forwarded-tcpip"
 	RequestTypeForward           = "tcpip-forward"
 )
@@ -124,10 +124,12 @@ func (s *TunnelServer) Run() error {
 			c, err := s.openConn(addr)
 			if err != nil {
 				log.Tracef("open conn error: %v", err)
-				workConn.Close()
+				_ = workConn.Close()
 				return false
 			}
-			libio.Join(c, workConn)
+
+			var inCount, outCount int64
+			libio.Join(c, workConn, &inCount, &outCount, nil, nil)
 			return false
 		},
 	})
@@ -163,7 +165,7 @@ func (s *TunnelServer) Run() error {
 		})
 	}()
 
-	s.vc.UpdateProxyConfigurer([]v1.ProxyConfigurer{pc})
+	s.vc.UpdateProxyConfigurer([]v1.ProxyConfigure{pc})
 
 	if ps, err := s.waitProxyStatusReady(pc.GetBaseConfig().Name, time.Second); err != nil {
 		s.writeToClient(err.Error())
@@ -247,7 +249,7 @@ func (s *TunnelServer) waitForwardAddrAndExtraPayload(
 	return addr, extraPayload, nil
 }
 
-func (s *TunnelServer) parseClientAndProxyConfigurer(_ *tcpipForward, extraPayload string) (*v1.ClientCommonConfig, v1.ProxyConfigurer, string, error) {
+func (s *TunnelServer) parseClientAndProxyConfigurer(_ *tcpipForward, extraPayload string) (*v1.ClientCommonConfig, v1.ProxyConfigure, string, error) {
 	helpMessage := ""
 	cmd := &cobra.Command{
 		Use:   "ssh v0@{address} [command]",
@@ -265,7 +267,7 @@ func (s *TunnelServer) parseClientAndProxyConfigurer(_ *tcpipForward, extraPaylo
 	if !slices.Contains(supportTypes, proxyType) {
 		return nil, nil, helpMessage, fmt.Errorf("invalid proxy type: %s, support types: %v", proxyType, supportTypes)
 	}
-	pc := v1.NewProxyConfigurerByType(v1.ProxyType(proxyType))
+	pc := v1.NewProxyConfigureByType(v1.ProxyType(proxyType))
 	if pc == nil {
 		return nil, nil, helpMessage, fmt.Errorf("new proxy configurer error")
 	}

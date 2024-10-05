@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
 )
 
 const tomlServerContent = `

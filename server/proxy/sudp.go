@@ -17,7 +17,7 @@ package proxy
 import (
 	"reflect"
 
-	v1 "github.com/fatedier/frp/pkg/config/v1"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
 )
 
 func init() {
@@ -30,7 +30,7 @@ type SUDPProxy struct {
 }
 
 func NewSUDPProxy(baseProxy *BaseProxy) Proxy {
-	unwrapped, ok := baseProxy.GetConfigurer().(*v1.SUDPProxyConfig)
+	unwrapped, ok := baseProxy.GetConfigure().(*v1.SUDPProxyConfig)
 	if !ok {
 		return nil
 	}

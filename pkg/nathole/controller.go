@@ -25,18 +25,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fatedier/golib/errors"
+	"github.com/SoHugePenguin/golib/errors"
 	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/fatedier/frp/pkg/msg"
-	"github.com/fatedier/frp/pkg/transport"
-	"github.com/fatedier/frp/pkg/util/log"
-	"github.com/fatedier/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/msg"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
 )
 
-// NatHoleTimeout seconds.
-var NatHoleTimeout int64 = 10
+// Timeout NatHoleTimeout seconds.
+var Timeout int64 = 10
 
 func NewTransactionID() string {
 	id, _ := util.RandID()
@@ -212,7 +212,7 @@ func (c *Controller) HandleVisitor(m *msg.NatHoleVisitor, transporter transport.
 	// wait for NatHoleClient message
 	select {
 	case <-session.notifyCh:
-	case <-time.After(time.Duration(NatHoleTimeout) * time.Second):
+	case <-time.After(time.Duration(Timeout) * time.Second):
 		log.Debugf("wait for NatHoleClient message timeout, sid [%s]", sid)
 		return
 	}
@@ -220,7 +220,7 @@ func (c *Controller) HandleVisitor(m *msg.NatHoleVisitor, transporter transport.
 	// Make hole-punching decisions based on the NAT information of the client and visitor.
 	vResp, cResp, err := c.analysis(session)
 	if err != nil {
-		log.Debugf("sid [%s] analysis error: %v", err)
+		log.Debugf("sid [%s] analysis error: %v", session.sid, err)
 		vResp = c.GenNatHoleResponse(session.visitorMsg.TransactionID, nil, err.Error())
 		cResp = c.GenNatHoleResponse(session.clientMsg.TransactionID, nil, err.Error())
 	}

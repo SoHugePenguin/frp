@@ -15,11 +15,12 @@
 package v1
 
 import (
+	"github.com/SoHugePenguin/frp/pkg/msg"
 	"os"
 
 	"github.com/samber/lo"
 
-	"github.com/fatedier/frp/pkg/util/util"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
 )
 
 type ClientConfig struct {
@@ -44,7 +45,13 @@ type ClientCommonConfig struct {
 	// ServerPort specifies the port to connect to the server on. By default,
 	// this value is 7000.
 	ServerPort int `json:"serverPort,omitempty"`
+
+	// penguin add
+	ServerMsgPort int `json:"serverMsgPort,omitempty"`
+	MaxMsgLength  int `json:"maxMsgLength,omitempty"`
+
 	// STUN server to help penetrate NAT hole.
+	// xtcp和stcp，客户端p2p点对点连接相关，业务不做要求。
 	NatHoleSTUNServer string `json:"natHoleStunServer,omitempty"`
 	// DNSServer specifies a DNS server address for FRPC to use. If this value
 	// is "", the default DNS will be used.
@@ -77,6 +84,11 @@ func (c *ClientCommonConfig) Complete() {
 	c.ServerPort = util.EmptyOr(c.ServerPort, 7000)
 	c.LoginFailExit = util.EmptyOr(c.LoginFailExit, lo.ToPtr(true))
 	c.NatHoleSTUNServer = util.EmptyOr(c.NatHoleSTUNServer, "stun.easyvoip.com:3478")
+
+	maxMsgLength := int64(util.EmptyOr(c.MaxMsgLength, 0))
+	if maxMsgLength > 0 {
+		msg.SetMaxMsgLength(maxMsgLength)
+	}
 
 	c.Auth.Complete()
 	c.Log.Complete()

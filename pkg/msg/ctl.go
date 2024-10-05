@@ -15,9 +15,12 @@
 package msg
 
 import (
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	"github.com/SoHugePenguin/frp/pkg/util/version"
 	"io"
+	"net"
 
-	jsonMsg "github.com/fatedier/golib/msg/json"
+	jsonMsg "github.com/SoHugePenguin/golib/msg/json"
 )
 
 type Message = jsonMsg.Message
@@ -31,6 +34,11 @@ func init() {
 	}
 }
 
+// SetMaxMsgLength 设置一次连接(比如udp包)的最大消息内容长度，在goLib中，默认值defaultMaxMsgLength = 10240
+func SetMaxMsgLength(length int64) {
+	msgCtl.SetMaxMsgLength(length)
+}
+
 func ReadMsg(c io.Reader) (msg Message, err error) {
 	return msgCtl.ReadMsg(c)
 }
@@ -41,4 +49,34 @@ func ReadMsgInto(c io.Reader, msg Message) (err error) {
 
 func WriteMsg(c io.Writer, msg interface{}) (err error) {
 	return msgCtl.WriteMsg(c, msg)
+}
+
+type ConnMsg struct {
+	Token string
+	Conn  net.Conn
+}
+
+// WriteRealtimeMsgByConfig 输入无效时不做任何处理
+func WriteRealtimeMsgByConfig(connMap map[string]*ConnMsg, runID string, text string, code int) error {
+	// 避免程序报错崩溃
+	defer func() {
+		if r := recover(); r != nil {
+			log.Debugf(r.(error).Error())
+		}
+	}()
+
+	err := WriteMsg(connMap[runID].Conn, &RealTimeMsg{
+		Version: version.Full(),
+		Text:    text,
+		Code:    code,
+	})
+	return err
+}
+
+func WriteRealtimeMsg(c io.Writer, text string, code int) {
+	_ = WriteMsg(c, &RealTimeMsg{
+		Version: version.Full(),
+		Text:    text,
+		Code:    code,
+	})
 }

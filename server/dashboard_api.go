@@ -23,13 +23,13 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/fatedier/frp/pkg/config/types"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
-	"github.com/fatedier/frp/pkg/metrics/mem"
-	httppkg "github.com/fatedier/frp/pkg/util/http"
-	"github.com/fatedier/frp/pkg/util/log"
-	netpkg "github.com/fatedier/frp/pkg/util/net"
-	"github.com/fatedier/frp/pkg/util/version"
+	"github.com/SoHugePenguin/frp/pkg/config/types"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/pkg/metrics/mem"
+	httppkg "github.com/SoHugePenguin/frp/pkg/util/http"
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
+	"github.com/SoHugePenguin/frp/pkg/util/version"
 )
 
 type GeneralResponse struct {
@@ -54,6 +54,8 @@ func (svr *Service) registerRouteHandlers(helper *httppkg.RouterRegisterHelper) 
 	subRouter.HandleFunc("/api/proxy/{type}/{name}", svr.apiProxyByTypeAndName).Methods("GET")
 	subRouter.HandleFunc("/api/traffic/{name}", svr.apiProxyTraffic).Methods("GET")
 	subRouter.HandleFunc("/api/proxies", svr.deleteProxies).Methods("DELETE")
+	// penguin apis
+	subRouter.HandleFunc("/api/blacklist/{type}/{user_token}", svr.apiBlacklist).Methods("POST")
 
 	// view
 	subRouter.Handle("/favicon.ico", http.FileServer(helper.AssetsFS)).Methods("GET")
@@ -194,7 +196,7 @@ func getConfByType(proxyType string) any {
 	}
 }
 
-// Get proxy info.
+// ProxyStatsInfo Get proxy info.
 type ProxyStatsInfo struct {
 	Name            string      `json:"name"`
 	Conf            interface{} `json:"conf"`
@@ -242,7 +244,7 @@ func (svr *Service) getProxyStatsByType(proxyType string) (proxyInfos []*ProxySt
 	for _, ps := range proxyStats {
 		proxyInfo := &ProxyStatsInfo{}
 		if pxy, ok := svr.pxyManager.GetByName(ps.Name); ok {
-			content, err := json.Marshal(pxy.GetConfigurer())
+			content, err := json.Marshal(pxy.GetConfigure())
 			if err != nil {
 				log.Warnf("marshal proxy [%s] conf info error: %v", ps.Name, err)
 				continue
@@ -270,7 +272,7 @@ func (svr *Service) getProxyStatsByType(proxyType string) (proxyInfos []*ProxySt
 	return
 }
 
-// Get proxy info by name.
+// GetProxyStatsResp Get proxy info by name.
 type GetProxyStatsResp struct {
 	Name            string      `json:"name"`
 	Conf            interface{} `json:"conf"`
@@ -316,7 +318,7 @@ func (svr *Service) getProxyStatsByTypeAndName(proxyType string, proxyName strin
 		msg = "no proxy info found"
 	} else {
 		if pxy, ok := svr.pxyManager.GetByName(proxyName); ok {
-			content, err := json.Marshal(pxy.GetConfigurer())
+			content, err := json.Marshal(pxy.GetConfigure())
 			if err != nil {
 				log.Warnf("marshal proxy [%s] conf info error: %v", ps.Name, err)
 				code = 400
@@ -345,7 +347,7 @@ func (svr *Service) getProxyStatsByTypeAndName(proxyType string, proxyName strin
 	return
 }
 
-// /api/traffic/:name
+// GetProxyTrafficResp /api/traffic/:name
 type GetProxyTrafficResp struct {
 	Name       string  `json:"name"`
 	TrafficIn  []int64 `json:"trafficIn"`
@@ -395,12 +397,44 @@ func (svr *Service) deleteProxies(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	status := r.URL.Query().Get("status")
-	if status != "offline" {
-		res.Code = 400
-		res.Msg = "status only support offline"
-		return
-	}
+	//status := r.URL.Query().Get("status")
+	//if status != "offline" {
+	//	res.Code = 400
+	//	res.Msg = "status only support offline"
+	//	return
+	//}
 	cleared, total := mem.StatsCollector.ClearOfflineProxies()
 	log.Infof("cleared [%d] offline proxies, total [%d] proxies", cleared, total)
+}
+
+// penguin add     /api/blacklist/:type/:user_token
+func (svr *Service) apiBlacklist(w http.ResponseWriter, r *http.Request) {
+	res := GeneralResponse{Code: 200}
+	params := mux.Vars(r)
+	proxyType := params["type"]
+	userToken := params["user_token"]
+
+	defer func() {
+		log.Infof("[penguin] Http response [%s]: code [%d]", r.URL.Path, res.Code)
+		w.WriteHeader(res.Code)
+		if len(res.Msg) > 0 {
+			_, _ = w.Write([]byte(res.Msg))
+		}
+	}()
+	log.Infof("[penguin] Http request: [%s]", r.URL.Path)
+
+	if proxyType == "add" {
+		svr.cfg.Blacklist[userToken] = struct{}{}
+		res.Msg = "200"
+		log.Infof("success add user [%s] to blacklist", userToken)
+		return
+	} else if proxyType == "del" {
+		delete(svr.cfg.Blacklist, userToken)
+		res.Msg = "200"
+		log.Infof("success delete user [%s] from blacklist", userToken)
+		return
+	} else {
+		res.Msg = "unknown type, Valid are add or del"
+		res.Code = 500
+	}
 }

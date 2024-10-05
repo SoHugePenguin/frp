@@ -8,13 +8,13 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 
-	"github.com/fatedier/frp/pkg/transport"
-	"github.com/fatedier/frp/test/e2e/framework"
-	"github.com/fatedier/frp/test/e2e/framework/consts"
-	"github.com/fatedier/frp/test/e2e/mock/server/httpserver"
-	"github.com/fatedier/frp/test/e2e/pkg/cert"
-	"github.com/fatedier/frp/test/e2e/pkg/port"
-	"github.com/fatedier/frp/test/e2e/pkg/request"
+	"github.com/SoHugePenguin/frp/pkg/transport"
+	"github.com/SoHugePenguin/frp/test/e2e/framework"
+	"github.com/SoHugePenguin/frp/test/e2e/framework/consts"
+	"github.com/SoHugePenguin/frp/test/e2e/mock/server/httpserver"
+	"github.com/SoHugePenguin/frp/test/e2e/pkg/cert"
+	"github.com/SoHugePenguin/frp/test/e2e/pkg/port"
+	"github.com/SoHugePenguin/frp/test/e2e/pkg/request"
 )
 
 var _ = ginkgo.Describe("[Feature: Client-Plugins]", func() {

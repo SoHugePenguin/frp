@@ -15,11 +15,11 @@
 package ssh
 
 import (
-	"github.com/fatedier/frp/client/proxy"
-	v1 "github.com/fatedier/frp/pkg/config/v1"
+	"github.com/SoHugePenguin/frp/client/proxy"
+	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
 )
 
-func createSuccessInfo(user string, pc v1.ProxyConfigurer, ps *proxy.WorkingStatus) string {
+func createSuccessInfo(user string, pc v1.ProxyConfigure, ps *proxy.WorkingStatus) string {
 	base := pc.GetBaseConfig()
 	out := "\n"
 	out += "frp (via SSH) (Ctrl+C to quit)\n\n"
