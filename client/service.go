@@ -422,6 +422,8 @@ func (svr *Service) loginMsgServer() {
 	go func() {
 		for {
 			// 写入空字节触发心跳机制
+			timeout--
+			<-time.After(2 * time.Second)
 			if timeout <= 0 {
 				log.Errorf("msg server 断连了。")
 
@@ -456,8 +458,6 @@ func (svr *Service) loginMsgServer() {
 					continue
 				}
 			}
-			timeout--
-			<-time.After(2 * time.Second)
 		}
 	}()
 

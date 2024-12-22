@@ -15,6 +15,7 @@
 package udp
 
 import (
+	"encoding/base64"
 	"net"
 	"sync"
 	"time"
@@ -27,17 +28,25 @@ import (
 
 func NewUDPPacket(buf []byte, laddr, raddr *net.UDPAddr) *msg.UDPPacket {
 	return &msg.UDPPacket{
-		Content:    buf,
+		Content:    base64.StdEncoding.EncodeToString(buf),
 		LocalAddr:  laddr,
 		RemoteAddr: raddr,
 	}
+}
+
+func GetContent(m *msg.UDPPacket) (buf []byte, err error) {
+	buf, err = base64.StdEncoding.DecodeString(m.Content)
+	return
 }
 
 func ForwardUserConn(udpConn *net.UDPConn, readCh <-chan *msg.UDPPacket, sendCh chan<- *msg.UDPPacket, bufSize int) (err error) {
 	// read
 	go func() {
 		for udpMsg := range readCh {
-			buf := udpMsg.Content
+			buf, err := GetContent(udpMsg)
+			if err != nil {
+				continue
+			}
 			_, _ = udpConn.WriteToUDP(buf, udpMsg.RemoteAddr)
 		}
 	}()
@@ -96,8 +105,7 @@ func Forwarder(dstAddr *net.UDPAddr, readCh <-chan *msg.UDPPacket, sendCh chan<-
 	// read from readCh
 	go func() {
 		for udpMsg := range readCh {
-			var err error
-			buf := udpMsg.Content
+			buf, err := GetContent(udpMsg)
 			mu.Lock()
 			udpConn, ok := udpConnMap[udpMsg.RemoteAddr.String()]
 			if !ok {
