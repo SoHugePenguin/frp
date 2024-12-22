@@ -93,7 +93,7 @@ func (pxy *SUDPProxy) InWorkConn(conn net.Conn, _ *msg.StartWorkConn) {
 	if pxy.cfg.Transport.UseEncryption {
 		rwc, err = libio.WithEncryption(rwc, []byte(pxy.clientCfg.Auth.Token))
 		if err != nil {
-			conn.Close()
+			_ = conn.Close()
 			xl.Errorf("create encryption stream error: %v", err)
 			return
 		}

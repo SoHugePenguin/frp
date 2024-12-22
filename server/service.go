@@ -20,7 +20,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/SoHugePenguin/frp/server/models"
-	"github.com/SoHugePenguin/frp/server/models/mysql"
 	"io"
 	"net"
 	"net/http"
@@ -452,8 +451,31 @@ func (svr *Service) handleConnection(ctx context.Context, conn net.Conn, interna
 	switch m := rawMsg.(type) {
 	case *msg.Login:
 		// 登录失败拒绝建立连接
-		userToken := m.Metas["token"]
-		_, exist := svr.cfg.Blacklist[userToken]
+		userMail, exist := m.Metas["email"]
+		if !exist {
+			_ = msg.WriteMsg(conn, &msg.LoginResp{
+				Version: version.Full(),
+				Error: util.GenerateResponseErrorString("401~",
+					models.InitError("email 未指定！重新检查你的配置。", 401),
+					lo.FromPtr(svr.cfg.DetailedErrorsToClient)),
+			})
+			_ = conn.Close()
+			return
+		}
+
+		_, exist = m.Metas["password"]
+		if !exist {
+			_ = msg.WriteMsg(conn, &msg.LoginResp{
+				Version: version.Full(),
+				Error: util.GenerateResponseErrorString("401~",
+					models.InitError("密码 未指定！重新检查你的配置。", 401),
+					lo.FromPtr(svr.cfg.DetailedErrorsToClient)),
+			})
+			_ = conn.Close()
+			return
+		}
+
+		_, exist = svr.cfg.Blacklist[userMail]
 		if exist {
 			_ = msg.WriteMsg(conn, &msg.LoginResp{
 				Version: version.Full(),
@@ -461,24 +483,7 @@ func (svr *Service) handleConnection(ctx context.Context, conn net.Conn, interna
 					models.InitError("没流量了你用个屁！给你客户端掐咯。", 403),
 					lo.FromPtr(svr.cfg.DetailedErrorsToClient)),
 			})
-			log.Infof("用户 [%s] 在黑名单中试图建立连接，已被拒绝。", m.Metas["token"])
-			_ = conn.Close()
-			return
-		}
-
-		// 查看用户token是否存在与数据库t_user中
-		var user mysql.User
-		db := svr.cfg.MysqlDBConnect
-		db.Select("id").Where("user_token = ?", userToken).First(&user)
-		if user.ID == 0 {
-			log.Errorf("用户 [%s] 不存在，已拒绝建立代理连接", userToken)
-			// 发送错误到客户端(配合polarClient)
-			_ = msg.WriteMsg(conn, &msg.LoginResp{
-				Version: version.Full(),
-				Error: util.GenerateResponseErrorString("401~",
-					models.InitError("没登录成功你用个屁！", 401),
-					lo.FromPtr(svr.cfg.DetailedErrorsToClient)),
-			})
+			log.Infof("用户 [%s] 在黑名单中试图建立连接，已被拒绝。", m.Metas["email"])
 			_ = conn.Close()
 			return
 		}
@@ -492,16 +497,17 @@ func (svr *Service) handleConnection(ctx context.Context, conn net.Conn, interna
 		if err == nil {
 			m = &retContent.Login
 			// runID 经过这里时回执给客户端，所以要在这里处理runID -> userToken map
-			err = svr.RegisterControl(conn, m, internal, userToken)
-		}
-
-		// If login failed, send error message there.
-		// Otherwise, send success message in control's work goroutine.
-		if err != nil {
-			xl.Warnf("register control error: %v", err)
+			err = svr.RegisterControl(conn, m, internal, userMail)
+			log.Infof("%s %s", content.Metas["email"], "登录成功！")
+		} else {
+			// If login failed, send error message there.
+			// Otherwise, send success message in control's work goroutine.
+			xl.Warnf("%s 失败: %v", content.ClientAddress, err)
 			_ = msg.WriteMsg(conn, &msg.LoginResp{
 				Version: version.Full(),
-				Error:   util.GenerateResponseErrorString("register control error", err, lo.FromPtr(svr.cfg.DetailedErrorsToClient)),
+				Error: util.GenerateResponseErrorString("401~",
+					models.InitError("登陆失败！请检查你的配置。", 401),
+					lo.FromPtr(svr.cfg.DetailedErrorsToClient)),
 			})
 			_ = conn.Close()
 		}
@@ -591,12 +597,6 @@ func (svr *Service) HandleListener(l net.Listener, internal bool) {
 }
 
 func (svr *Service) HandlePenguinRealtimeMsgListener(l net.Listener) {
-	defer func() {
-		if err := recover(); err != nil {
-			log.Errorf(err.(error).Error())
-		}
-	}()
-
 	for {
 		// 监听新的客户端连接
 		conn, err := l.Accept()
@@ -611,15 +611,22 @@ func (svr *Service) HandlePenguinRealtimeMsgListener(l net.Listener) {
 			log.Errorf("[penguin msg] 读取客户端配置文件失败: %v", err)
 			continue
 		}
+
+		if runIDMsg.RunID == "" {
+			continue
+		}
+
 		msgConn, exist := svr.cfg.RunIdList[runIDMsg.RunID]
 		if !exist {
 			continue
 		}
+
 		// 绑定conn 方便在任何地方都可以对客户端通讯
-		if svr.cfg.RunIdList[runIDMsg.RunID].Conn != nil {
+		if msgConn.Conn != nil {
 			_ = svr.cfg.RunIdList[runIDMsg.RunID].Conn.Close()
 		}
 		svr.cfg.RunIdList[runIDMsg.RunID].Conn = conn
+
 		msg.WriteRealtimeMsg(conn, "成功连接上msg Server, 通讯服务正常 runID: "+runIDMsg.RunID, 665)
 		log.Infof("用户 [%s] 成功连接 msg Server, runID: [%s]", msgConn.Token, runIDMsg.RunID)
 	}
@@ -699,7 +706,7 @@ func (svr *Service) RegisterControl(ctlConn net.Conn, loginMsg *msg.Login, inter
 					_, exist := svr.cfg.Blacklist[userToken]
 					if exist {
 						_ = msg.WriteRealtimeMsgByConfig(svr.cfg.RunIdList, loginMsg.RunID, "流量已耗尽，您已无法使用内网穿透，请查看仪表盘或咨询管理员。", 403)
-						log.Warnf("用户 [%s] 建立控制器，但流量耗尽，已被强制关闭", loginMsg.Metas["token"])
+						log.Warnf("用户 [%s] 建立控制器，但流量耗尽，已被强制关闭", loginMsg.Metas["email"])
 						_ = ctl.Close()
 						return
 					}
@@ -707,7 +714,7 @@ func (svr *Service) RegisterControl(ctlConn net.Conn, loginMsg *msg.Login, inter
 					var heartErr error
 					heartErr = msg.WriteRealtimeMsgByConfig(svr.cfg.RunIdList, loginMsg.RunID, "", 666)
 					if heartErr != nil {
-						log.Errorf("用户 [%s] 与msg server的tcp连接中断！", loginMsg.Metas["token"])
+						log.Errorf("用户 [%s] 与msg server的tcp连接中断！", loginMsg.Metas["email"])
 						return
 					}
 				}
@@ -761,7 +768,7 @@ func (svr *Service) RegisterWorkConn(workConn net.Conn, newMsg *msg.NewWorkConn)
 		err = ctl.authVerifier.VerifyNewWorkConn(newMsg)
 
 		// flow test
-		_, exist = svr.cfg.Blacklist[content.User.Metas["token"]]
+		_, exist = svr.cfg.Blacklist[content.User.Metas["email"]]
 		if exist {
 			_ = workConn.Close()
 		} else {
@@ -780,7 +787,7 @@ func (svr *Service) RegisterWorkConn(workConn net.Conn, newMsg *msg.NewWorkConn)
 							return
 						}
 						// 查询黑名单
-						_, exist = svr.cfg.Blacklist[content.User.Metas["token"]]
+						_, exist = svr.cfg.Blacklist[content.User.Metas["email"]]
 						if exist {
 							// 流量没了的情况下 直接杀死！
 							return

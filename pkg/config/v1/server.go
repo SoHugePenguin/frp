@@ -18,15 +18,12 @@ import (
 	"fmt"
 	"github.com/SoHugePenguin/frp/pkg/config/types"
 	ctl "github.com/SoHugePenguin/frp/pkg/msg"
-	"github.com/SoHugePenguin/frp/pkg/util/log"
 	"github.com/SoHugePenguin/frp/pkg/util/util"
-	mysql2 "github.com/SoHugePenguin/frp/server/models/mysql"
 	"github.com/samber/lo"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"os"
-	"time"
 )
 
 type ServerConfig struct {
@@ -151,37 +148,6 @@ func (c *ServerConfig) Complete() {
 		fmt.Println("数据库连接失败: ", err)
 		os.Exit(0)
 	}
-
-	// init mysql timer
-	go func() {
-		ticker := time.NewTicker(2 * time.Second) // 每分钟触发一次
-		defer ticker.Stop()                       // 程序退出时停止定时器
-
-		for {
-			select {
-			case <-ticker.C:
-				// 确保无论发生什么都持续运行timer
-				func() {
-					defer func() {
-						if r := recover(); r != nil {
-							log.Errorf("mysql operate error: %s", r)
-						}
-					}()
-					var users []mysql2.User
-					var db = c.MysqlDBConnect
-					db.Where("total_traffic_usage > total_traffic_quota").Find(&users)
-					for i := range users {
-						_, exists := c.Blacklist[users[i].UserToken]
-						if !exists {
-							c.Blacklist[users[i].UserToken] = struct{}{}
-							log.Infof("%+v流量已耗尽，已加入黑名单", users[i].UserToken)
-						}
-					}
-				}()
-			}
-		}
-	}()
-
 	// penguin add
 }
 

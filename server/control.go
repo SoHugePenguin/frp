@@ -382,10 +382,10 @@ func (ctl *Control) handleNewProxy(m msg.Message) {
 	}
 
 	// 从创建代理开始就要判断是否为黑名单用户，减少资源浪费。
-	userToken := ctl.loginMsg.Metas["token"]
-	_, exist := ctl.serverCfg.Blacklist[userToken]
+	userEmail := ctl.loginMsg.Metas["email"]
+	_, exist := ctl.serverCfg.Blacklist[userEmail]
 	if exist {
-		log.Infof("用户 [%s] 在黑名单中试图建立连接，已被拒绝。", ctl.loginMsg.Metas["token"])
+		log.Infof("用户 [%s] 在黑名单中试图建立连接，已被拒绝。", ctl.loginMsg.Metas["email"])
 		return
 	}
 
@@ -393,9 +393,9 @@ func (ctl *Control) handleNewProxy(m msg.Message) {
 	var user mysql.User
 	var myProxy mysql.Proxy
 	db := ctl.serverCfg.MysqlDBConnect
-	db.Select("id").Where("user_token = ?", userToken).First(&user)
+	db.Select("id").Where("email = ?", userEmail).First(&user)
 	if user.ID == 0 {
-		log.Errorf("用户 [%s] 不存在，已拒绝建立代理连接", userToken)
+		log.Errorf("用户 [%s] 不存在，已拒绝建立代理连接", userEmail)
 		return
 	}
 
@@ -403,26 +403,26 @@ func (ctl *Control) handleNewProxy(m msg.Message) {
 	inMsg := m.(*msg.NewProxy)
 
 	// 仅允许localAddr 和 localPort 可以自定义
-	db.Where("proxy_name = ?", inMsg.ProxyName).First(&myProxy)
+	db.Where("proxy_name = ? && is_deleted = ?", inMsg.ProxyName, false).First(&myProxy)
 	// 未从数据库查到
 	if myProxy.ID == 0 {
 		_ = msg.WriteRealtimeMsgByConfig(ctl.serverCfg.RunIdList, ctl.runID,
 			fmt.Sprintf("代理token不正确，请检查你的 [%s] 代理配置!", inMsg.ProxyName), 403)
-		log.Errorf("用户 [%s] 申请的代理连接ProxyName与数据库不匹配", userToken)
+		log.Errorf("用户 [%s] 申请的代理连接ProxyName与数据库不匹配", userEmail)
 		return
 	}
 	if inMsg.ProxyType != myProxy.ProxyType {
-		log.Errorf("用户 [%s] 申请的代理连接ProxyType与数据库不匹配", userToken)
+		log.Errorf("用户 [%s] 申请的代理连接ProxyType与数据库不匹配", userEmail)
 		return
 	}
 	if inMsg.RemotePort != myProxy.RemotePort {
-		log.Errorf("用户 [%s] 申请的代理连接RemotePort与数据库不匹配", userToken)
+		log.Errorf("用户 [%s] 申请的代理连接RemotePort与数据库不匹配", userEmail)
 		return
 	}
 
 	// success
 	log.Warnf("用户 [%s] 成功建立代理连接 {name:%s, type:%s, port:%d}",
-		userToken, myProxy.ProxyName, myProxy.ProxyType, myProxy.RemotePort)
+		userEmail, myProxy.ProxyName, myProxy.ProxyType, myProxy.RemotePort)
 
 	// 流量速率限制初始化
 	inMsg.MaxInRate = myProxy.MaxInRate
@@ -440,7 +440,8 @@ func (ctl *Control) handleNewProxy(m msg.Message) {
 	retContent, err := ctl.pluginManager.NewProxy(content)
 	if err == nil {
 		inMsg = &retContent.NewProxy
-		remoteAddr, err = ctl.RegisterProxy(inMsg)
+		// 传入用户特征进去
+		remoteAddr, err = ctl.RegisterProxy(inMsg, myProxy)
 	}
 
 	// register proxy in this control
@@ -510,7 +511,7 @@ func (ctl *Control) handleCloseProxy(m msg.Message) {
 	xl.Infof("close proxy [%s] success", inMsg.ProxyName)
 }
 
-func (ctl *Control) RegisterProxy(pxyMsg *msg.NewProxy) (remoteAddr string, err error) {
+func (ctl *Control) RegisterProxy(pxyMsg *msg.NewProxy, myProxy mysql.Proxy) (remoteAddr string, err error) {
 	var pxyConf v1.ProxyConfigure
 	// Load configures from NewProxy message and validate.
 	pxyConf, err = config.NewProxyConfigurerFromMsg(pxyMsg, ctl.serverCfg)
@@ -538,6 +539,8 @@ func (ctl *Control) RegisterProxy(pxyMsg *msg.NewProxy) (remoteAddr string, err 
 		MaxInRate:          pxyMsg.MaxInRate,
 		MaxOutRate:         pxyMsg.MaxOutRate,
 		CtlRunId:           ctl.runID,
+		UserId:             myProxy.UserID,
+		ProxyId:            myProxy.ID,
 	})
 	if err != nil {
 		return remoteAddr, err

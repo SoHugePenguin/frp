@@ -17,6 +17,8 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"github.com/SoHugePenguin/frp/pkg/metrics/mem"
+	"github.com/SoHugePenguin/frp/server/models/mysql"
 	"io"
 	"net"
 	"reflect"
@@ -82,6 +84,8 @@ type BaseProxy struct {
 	maxInRate  *int64 // 每秒最多传输多少字节数据
 	maxOutRate *int64
 	ctlRunId   string
+	userId     uint
+	proxyId    uint
 }
 
 func (pxy *BaseProxy) GetName() string {
@@ -132,6 +136,83 @@ func (pxy *BaseProxy) InitTimer() {
 			}
 		}
 	}()
+
+	go func() {
+		var oldTrafficIn, oldTrafficOut, lastMinuteTrafficIn, lastMinuteTrafficOut, maxRateIn, maxRateOut int64
+		for {
+			var proxyTrafficInfo *mem.ProxyTrafficInfo
+			var currentIn, currentOut int64
+
+			for i := 0; i < 60; i++ {
+				select {
+				case <-time.After(1 * time.Second):
+				case <-pxy.ctx.Done():
+					return
+				}
+				proxyTrafficInfo = mem.StatsCollector.GetProxyTraffic(pxy.name)
+				if proxyTrafficInfo == nil {
+					continue
+				}
+
+				currentIn = proxyTrafficInfo.TrafficIn[0]
+				currentOut = proxyTrafficInfo.TrafficOut[0]
+
+				inDiff := currentIn - oldTrafficIn
+				outDiff := currentOut - oldTrafficOut
+
+				// 隔天流量刷新，需要全部重置
+				if inDiff < 0 || outDiff < 0 {
+					i = -1
+					oldTrafficIn = 0
+					oldTrafficOut = 0
+					lastMinuteTrafficIn = 0
+					lastMinuteTrafficOut = 0
+					maxRateIn = 0
+					maxRateOut = 0
+					continue
+				}
+
+				if maxRateIn < inDiff {
+					maxRateIn = inDiff
+				}
+
+				if maxRateOut < outDiff {
+					maxRateOut = outDiff
+				}
+
+				oldTrafficIn = currentIn
+				oldTrafficOut = currentOut
+			}
+
+			// 平均速率 BPS
+			avgRateIn := (currentIn - lastMinuteTrafficIn) / 60
+			avgRateOut := (currentOut - lastMinuteTrafficOut) / 60
+
+			// 一分钟用了多少流量 B
+			totalTrafficIn := currentIn - lastMinuteTrafficIn
+			totalTrafficOut := currentOut - lastMinuteTrafficOut
+			lastMinuteTrafficIn = currentIn
+			lastMinuteTrafficOut = currentOut
+
+			if avgRateIn <= 0 && avgRateOut <= 0 && maxRateIn <= 0 && maxRateOut <= 0 {
+				continue
+			}
+			history := mysql.ProxyTrafficHistory{
+				ProxyID:         pxy.proxyId,
+				AvgRateIn:       avgRateIn,
+				AvgRateOut:      avgRateOut,
+				MaxRateIn:       maxRateIn,
+				MaxRateOut:      maxRateOut,
+				TotalTrafficIn:  totalTrafficIn,
+				TotalTrafficOut: totalTrafficOut,
+			}
+			maxRateIn = 0
+			maxRateOut = 0
+			db := pxy.serverCfg.MysqlDBConnect
+			db.Create(&history)
+		}
+	}()
+
 }
 
 func (pxy *BaseProxy) Close() {
@@ -323,6 +404,8 @@ type Options struct {
 	MaxInRate          int64
 	MaxOutRate         int64
 	CtlRunId           string
+	UserId             uint
+	ProxyId            uint
 }
 
 func NewProxy(ctx context.Context, options *Options) (pxy Proxy, err error) {
@@ -351,6 +434,8 @@ func NewProxy(ctx context.Context, options *Options) (pxy Proxy, err error) {
 		maxInRate:     &options.MaxInRate,
 		maxOutRate:    &options.MaxOutRate,
 		ctlRunId:      options.CtlRunId,
+		userId:        options.UserId,
+		proxyId:       options.ProxyId,
 	}
 
 	factory := proxyFactoryRegistry[reflect.TypeOf(configure)]

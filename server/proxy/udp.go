@@ -146,7 +146,7 @@ func (pxy *UDPProxy) Run() (remoteAddr string, err error) {
 					}
 
 					pxy.readCh <- m
-					//xl.Infof("%d , %+v", int64(len(m.Content)), m)
+					xl.Infof("%d , %+v", int64(len(m.Content)), m)
 
 					// 限速+统计速率
 					*pxy.maxOutRate -= int64(len(m.Content))

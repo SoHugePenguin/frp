@@ -187,11 +187,10 @@ func (svr *Service) Run(ctx context.Context) error {
 		_ = errors.As(context.Cause(svr.ctx), &cancelCause)
 		return fmt.Errorf("login to the server failed: %v. With loginFailExit enabled, no additional retries will be attempted", cancelCause.Err)
 	}
-
+	// 循环调用loopLoginUntilSuccess
+	go svr.keepControllerWorking()
 	// penguin login to msgServer
 	go svr.loginMsgServer()
-
-	go svr.keepControllerWorking()
 
 	<-svr.ctx.Done()
 	svr.stop()
@@ -359,11 +358,15 @@ func (svr *Service) loopLoginUntilSuccess(maxInterval time.Duration, firstLoginE
 
 // penguin init
 func (svr *Service) loginMsgServer() {
-	defer func() {
-		if err := recover(); err != nil {
-			log.Errorf(err.(error).Error())
+	// 没有登录成功的时候没有runID，不予创建msgServer
+	for {
+		if svr.runID != "" {
+			break
+		} else {
+			log.Errorf("登陆失败！请检查你的配置。")
 		}
-	}()
+		time.Sleep(2 * time.Second)
+	}
 
 	// 建立 TCP 连接
 	conn, err := net.Dial("tcp", net.JoinHostPort(svr.common.ServerAddr, strconv.Itoa(svr.common.ServerMsgPort)))
@@ -376,13 +379,13 @@ func (svr *Service) loginMsgServer() {
 		Version: version.Full(),
 		RunID:   svr.runID,
 	})
+
 	if err != nil {
 		log.Errorf("%s", err)
 	}
 
 	// 启动一个 goroutine 来持续接收服务端的消息
 	timeout := 6
-
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -423,7 +426,9 @@ func (svr *Service) loginMsgServer() {
 				log.Errorf("msg server 断连了。")
 
 				go func() {
-					_ = conn.Close()
+					if conn != nil {
+						_ = conn.Close()
+					}
 					conn, err = net.Dial("tcp", net.JoinHostPort(svr.common.ServerAddr, strconv.Itoa(svr.common.ServerMsgPort)))
 					if err != nil {
 						errChan <- err

@@ -11,6 +11,7 @@ type Proxy struct {
 	MaxInRate  int64     `gorm:"type:int;not null" json:"max_in_rate" comment:"隧道每秒最大下行字节数"`
 	MaxOutRate int64     `gorm:"type:int;not null" json:"max_out_rate" comment:"隧道每秒最大上行字节数"`
 	CreateDate time.Time `gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP" json:"create_date" comment:"创建日期"`
+	IsDeleted  bool      `gorm:"type:tinyint(1); not null;default:0" json:"is_deleted" comment:"0 false 1 true"`
 }
 
 func (Proxy) TableName() string {
