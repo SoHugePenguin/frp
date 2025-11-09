@@ -38,7 +38,7 @@ frpc:
 	env CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -tags frpc -o bin/frpc ./cmd/frpc
 
 frpc_win32:
-	go build -trimpath -ldflags "-s -w" -tags frps -o bin/frpc.exe ./cmd/frpc
+	go build -trimpath -ldflags "-s -w" -tags frpc -o bin/frpc.exe ./cmd/frpc
 
 frpc_linux:
 	@set CGO_ENABLED=0 && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -tags frpc -o bin/frpc ./cmd/frpc
