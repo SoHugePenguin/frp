@@ -372,7 +372,7 @@ func (ctl *Control) registerMsgHandlers() {
 func (ctl *Control) handleNewProxy(m msg.Message) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Debugf(r.(error).Error())
+			log.Debugf("handleNewProxy panic: %v", r)
 		}
 	}()
 

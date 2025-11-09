@@ -15,40 +15,54 @@
 package msg
 
 import (
-	"github.com/SoHugePenguin/frp/pkg/util/log"
-	"github.com/SoHugePenguin/frp/pkg/util/version"
+	"fmt"
 	"io"
 	"net"
+
+	"github.com/SoHugePenguin/frp/pkg/util/log"
+	"github.com/SoHugePenguin/frp/pkg/util/version"
 
 	jsonMsg "github.com/SoHugePenguin/golib/msg/json"
 )
 
 type Message = jsonMsg.Message
 
-var msgCtl *jsonMsg.MsgCtl
+var maxMsgLength int64 = 10240
 
-func init() {
-	msgCtl = jsonMsg.NewMsgCtl()
+//var msgCtl *jsonMsg.MsgCtl
+
+//func init() {
+//	msgCtl = jsonMsg.NewMsgCtl()
+//	for typeByte, msg := range msgTypeMap {
+//		msgCtl.RegisterMsg(typeByte, msg)
+//	}
+//}
+
+// 每次调用都自动初始化新的 MsgCtl
+func newMsgCtl() *jsonMsg.MsgCtl {
+	ctl := jsonMsg.NewMsgCtl()
+	ctl.SetMaxMsgLength(maxMsgLength)
 	for typeByte, msg := range msgTypeMap {
-		msgCtl.RegisterMsg(typeByte, msg)
+		ctl.RegisterMsg(typeByte, msg)
 	}
+	return ctl
 }
 
 // SetMaxMsgLength 设置一次连接(比如udp包)的最大消息内容长度，在goLib中，默认值defaultMaxMsgLength = 10240
 func SetMaxMsgLength(length int64) {
-	msgCtl.SetMaxMsgLength(length)
+	maxMsgLength = length
 }
 
 func ReadMsg(c io.Reader) (msg Message, err error) {
-	return msgCtl.ReadMsg(c)
+	return newMsgCtl().ReadMsg(c)
 }
 
 func ReadMsgInto(c io.Reader, msg Message) (err error) {
-	return msgCtl.ReadMsgInto(c, msg)
+	return newMsgCtl().ReadMsgInto(c, msg)
 }
 
 func WriteMsg(c io.Writer, msg interface{}) (err error) {
-	return msgCtl.WriteMsg(c, msg)
+	return newMsgCtl().WriteMsg(c, msg)
 }
 
 type ConnMsg struct {
@@ -61,11 +75,16 @@ func WriteRealtimeMsgByConfig(connMap map[string]*ConnMsg, runID string, text st
 	// 避免程序报错崩溃
 	defer func() {
 		if r := recover(); r != nil {
-			log.Debugf(r.(error).Error())
+			log.Debugf("WriteRealtimeMsgByConfig panic: %v", r)
 		}
 	}()
 
-	err := WriteMsg(connMap[runID].Conn, &RealTimeMsg{
+	conn := connMap[runID]
+	if conn == nil {
+		return fmt.Errorf("connection not found for runID: %s", runID)
+	}
+
+	err := WriteMsg(conn.Conn, &RealTimeMsg{
 		Version: version.Full(),
 		Text:    text,
 		Code:    code,
