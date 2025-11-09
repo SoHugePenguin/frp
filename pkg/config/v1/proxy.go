@@ -108,8 +108,11 @@ type DomainConfig struct {
 }
 
 type ProxyBaseConfig struct {
-	Name        string            `json:"name"`
-	Type        string            `json:"type"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+	// Enabled controls whether this proxy is enabled. nil or true means enabled, false means disabled.
+	// This allows individual control over each proxy, complementing the global "start" field.
+	Enabled     *bool             `json:"enabled,omitempty"`
 	Annotations map[string]string `json:"annotations,omitempty"`
 	Transport   ProxyTransport    `json:"transport,omitempty"`
 	// metadata info for each proxy
@@ -129,7 +132,7 @@ func (c *ProxyBaseConfig) Complete(namePrefix string) {
 	c.Transport.BandwidthLimitMode = util.EmptyOr(c.Transport.BandwidthLimitMode, types.BandwidthLimitModeClient)
 
 	if c.Plugin.ClientPluginOptions != nil {
-		c.Plugin.ClientPluginOptions.Complete()
+		c.Plugin.Complete()
 	}
 }
 
@@ -168,7 +171,7 @@ func (c *ProxyBaseConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 
 type TypedProxyConfig struct {
 	Type string `json:"type"`
-	ProxyConfigure
+	ProxyConfigurer
 }
 
 func (c *TypedProxyConfig) UnmarshalJSON(b []byte) error {
@@ -195,15 +198,15 @@ func (c *TypedProxyConfig) UnmarshalJSON(b []byte) error {
 	if err := decoder.Decode(configure); err != nil {
 		return fmt.Errorf("unmarshal ProxyConfig error: %v", err)
 	}
-	c.ProxyConfigure = configure
+	c.ProxyConfigurer = configure
 	return nil
 }
 
 func (c *TypedProxyConfig) MarshalJSON() ([]byte, error) {
-	return json.Marshal(c.ProxyConfigure)
+	return json.Marshal(c.ProxyConfigurer)
 }
 
-type ProxyConfigure interface {
+type ProxyConfigurer interface {
 	Complete(namePrefix string)
 	GetBaseConfig() *ProxyBaseConfig
 	// MarshalToMsg marshals this config into a msg.NewProxy message. This
@@ -238,17 +241,17 @@ var proxyConfigTypeMap = map[ProxyType]reflect.Type{
 	ProxyTypeSUDP:   reflect.TypeOf(SUDPProxyConfig{}),
 }
 
-func NewProxyConfigureByType(proxyType ProxyType) ProxyConfigure {
+func NewProxyConfigureByType(proxyType ProxyType) ProxyConfigurer {
 	v, ok := proxyConfigTypeMap[proxyType]
 	if !ok {
 		return nil
 	}
-	pc := reflect.New(v).Interface().(ProxyConfigure)
+	pc := reflect.New(v).Interface().(ProxyConfigurer)
 	pc.GetBaseConfig().Type = string(proxyType)
 	return pc
 }
 
-var _ ProxyConfigure = &TCPProxyConfig{}
+var _ ProxyConfigurer = &TCPProxyConfig{}
 
 type TCPProxyConfig struct {
 	ProxyBaseConfig
@@ -268,7 +271,7 @@ func (c *TCPProxyConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	c.RemotePort = m.RemotePort
 }
 
-var _ ProxyConfigure = &UDPProxyConfig{}
+var _ ProxyConfigurer = &UDPProxyConfig{}
 
 type UDPProxyConfig struct {
 	ProxyBaseConfig
@@ -288,7 +291,7 @@ func (c *UDPProxyConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	c.RemotePort = m.RemotePort
 }
 
-var _ ProxyConfigure = &HTTPProxyConfig{}
+var _ ProxyConfigurer = &HTTPProxyConfig{}
 
 type HTTPProxyConfig struct {
 	ProxyBaseConfig
@@ -331,7 +334,7 @@ func (c *HTTPProxyConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	c.RouteByHTTPUser = m.RouteByHTTPUser
 }
 
-var _ ProxyConfigure = &HTTPSProxyConfig{}
+var _ ProxyConfigurer = &HTTPSProxyConfig{}
 
 type HTTPSProxyConfig struct {
 	ProxyBaseConfig
@@ -358,7 +361,7 @@ const (
 	TCPMultiplexerHTTPConnect TCPMultiplexerType = "httpconnect"
 )
 
-var _ ProxyConfigure = &TCPMuxProxyConfig{}
+var _ ProxyConfigurer = &TCPMuxProxyConfig{}
 
 type TCPMuxProxyConfig struct {
 	ProxyBaseConfig
@@ -392,7 +395,7 @@ func (c *TCPMuxProxyConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	c.RouteByHTTPUser = m.RouteByHTTPUser
 }
 
-var _ ProxyConfigure = &STCPProxyConfig{}
+var _ ProxyConfigurer = &STCPProxyConfig{}
 
 type STCPProxyConfig struct {
 	ProxyBaseConfig
@@ -415,13 +418,16 @@ func (c *STCPProxyConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	c.AllowUsers = m.AllowUsers
 }
 
-var _ ProxyConfigure = &XTCPProxyConfig{}
+var _ ProxyConfigurer = &XTCPProxyConfig{}
 
 type XTCPProxyConfig struct {
 	ProxyBaseConfig
 
 	Secretkey  string   `json:"secretKey,omitempty"`
 	AllowUsers []string `json:"allowUsers,omitempty"`
+
+	// NatTraversal configuration for NAT traversal
+	NatTraversal *NatTraversalConfig `json:"natTraversal,omitempty"`
 }
 
 func (c *XTCPProxyConfig) MarshalToMsg(m *msg.NewProxy) {
@@ -438,7 +444,7 @@ func (c *XTCPProxyConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	c.AllowUsers = m.AllowUsers
 }
 
-var _ ProxyConfigure = &SUDPProxyConfig{}
+var _ ProxyConfigurer = &SUDPProxyConfig{}
 
 type SUDPProxyConfig struct {
 	ProxyBaseConfig

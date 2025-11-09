@@ -37,7 +37,9 @@ type Client struct {
 
 func NewClient(options ClientOptions) (*Client, error) {
 	if options.Common != nil {
-		options.Common.Complete()
+		if err := options.Common.Complete(); err != nil {
+			return nil, err
+		}
 	}
 
 	ln := netpkg.NewInternalListener()
@@ -66,7 +68,7 @@ func (c *Client) PeerListener() net.Listener {
 	return c.l
 }
 
-func (c *Client) UpdateProxyConfigurer(proxyCfgs []v1.ProxyConfigure) {
+func (c *Client) UpdateProxyConfigurer(proxyCfgs []v1.ProxyConfigurer) {
 	_ = c.svr.UpdateAllConfigure(proxyCfgs, nil)
 }
 

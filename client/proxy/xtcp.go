@@ -42,7 +42,7 @@ type XTCPProxy struct {
 	cfg *v1.XTCPProxyConfig
 }
 
-func NewXTCPProxy(baseProxy *BaseProxy, cfg v1.ProxyConfigure) Proxy {
+func NewXTCPProxy(baseProxy *BaseProxy, cfg v1.ProxyConfigurer) Proxy {
 	unwrapped, ok := cfg.(*v1.XTCPProxyConfig)
 	if !ok {
 		return nil
@@ -64,11 +64,19 @@ func (pxy *XTCPProxy) InWorkConn(conn net.Conn, startWorkConnMsg *msg.StartWorkC
 	}
 
 	xl.Tracef("nathole prepare start")
-	prepareResult, err := nathole.Prepare([]string{pxy.clientCfg.NatHoleSTUNServer})
+
+	// Prepare NAT traversal options
+	var opts nathole.PrepareOptions
+	if pxy.cfg.NatTraversal != nil && pxy.cfg.NatTraversal.DisableAssistedAddrs {
+		opts.DisableAssistedAddrs = true
+	}
+
+	prepareResult, err := nathole.Prepare([]string{pxy.clientCfg.NatHoleSTUNServer}, opts)
 	if err != nil {
 		xl.Warnf("nathole prepare error: %v", err)
 		return
 	}
+
 	xl.Infof("nathole prepare success, nat type: %s, behavior: %s, addresses: %v, assistedAddresses: %v",
 		prepareResult.NatType, prepareResult.Behavior, prepareResult.Addrs, prepareResult.AssistedAddrs)
 	defer prepareResult.ListenConn.Close()

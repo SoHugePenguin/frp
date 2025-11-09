@@ -51,7 +51,7 @@ type UDPProxy struct {
 	closed   bool
 }
 
-func NewUDPProxy(baseProxy *BaseProxy, cfg v1.ProxyConfigure) Proxy {
+func NewUDPProxy(baseProxy *BaseProxy, cfg v1.ProxyConfigurer) Proxy {
 	unwrapped, ok := cfg.(*v1.UDPProxyConfig)
 	if !ok {
 		return nil
@@ -171,5 +171,7 @@ func (pxy *UDPProxy) InWorkConn(conn net.Conn, _ *msg.StartWorkConn) {
 	go workConnSenderFn(pxy.workConn, pxy.sendCh)
 	go workConnReaderFn(pxy.workConn, pxy.readCh)
 	go heartbeatFn(pxy.sendCh)
-	udp.Forwarder(pxy.localAddr, pxy.readCh, pxy.sendCh, int(pxy.clientCfg.UDPPacketSize))
+
+	// Call Forwarder with proxy protocol version (empty string means no proxy protocol)
+	udp.Forwarder(pxy.localAddr, pxy.readCh, pxy.sendCh, int(pxy.clientCfg.UDPPacketSize), pxy.cfg.Transport.ProxyProtocolVersion)
 }

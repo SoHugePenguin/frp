@@ -31,6 +31,7 @@ import (
 	"github.com/SoHugePenguin/frp/pkg/config"
 	v1 "github.com/SoHugePenguin/frp/pkg/config/v1"
 	"github.com/SoHugePenguin/frp/pkg/config/v1/validation"
+	"github.com/SoHugePenguin/frp/pkg/featuregate"
 	"github.com/SoHugePenguin/frp/pkg/util/log"
 	"github.com/SoHugePenguin/frp/pkg/util/version"
 )
@@ -120,6 +121,12 @@ func runClient(cfgFilePath string) error {
 			"please use yaml/json/toml format instead!\n")
 	}
 
+	if len(cfg.FeatureGates) > 0 {
+		if err := featuregate.SetFromMap(cfg.FeatureGates); err != nil {
+			return err
+		}
+	}
+
 	warning, err := validation.ValidateAllClientConfig(cfg, proxyCfgs, visitorCfgs)
 	if warning != nil {
 		fmt.Printf("WARNING: %v\n", warning)
@@ -132,7 +139,7 @@ func runClient(cfgFilePath string) error {
 
 func startService(
 	cfg *v1.ClientCommonConfig,
-	proxyCfgs []v1.ProxyConfigure,
+	proxyCfgs []v1.ProxyConfigurer,
 	visitorCfgs []v1.VisitorConfigurer,
 	cfgFile string,
 ) error {

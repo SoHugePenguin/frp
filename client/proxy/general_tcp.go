@@ -21,7 +21,7 @@ import (
 )
 
 func init() {
-	pxyConfs := []v1.ProxyConfigure{
+	pxyConfs := []v1.ProxyConfigurer{
 		&v1.TCPProxyConfig{},
 		&v1.HTTPProxyConfig{},
 		&v1.HTTPSProxyConfig{},
@@ -40,7 +40,7 @@ type GeneralTCPProxy struct {
 	*BaseProxy
 }
 
-func NewGeneralTCPProxy(baseProxy *BaseProxy, _ v1.ProxyConfigure) Proxy {
+func NewGeneralTCPProxy(baseProxy *BaseProxy, _ v1.ProxyConfigurer) Proxy {
 	return &GeneralTCPProxy{
 		BaseProxy: baseProxy,
 	}

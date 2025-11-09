@@ -48,7 +48,7 @@ type SUDPProxy struct {
 	closeCh chan struct{}
 }
 
-func NewSUDPProxy(baseProxy *BaseProxy, cfg v1.ProxyConfigure) Proxy {
+func NewSUDPProxy(baseProxy *BaseProxy, cfg v1.ProxyConfigurer) Proxy {
 	unwrapped, ok := cfg.(*v1.SUDPProxyConfig)
 	if !ok {
 		return nil
@@ -205,5 +205,5 @@ func (pxy *SUDPProxy) InWorkConn(conn net.Conn, _ *msg.StartWorkConn) {
 	go workConnReaderFn(workConn, readCh)
 	go heartbeatFn(sendCh)
 
-	udp.Forwarder(pxy.localAddr, readCh, sendCh, int(pxy.clientCfg.UDPPacketSize))
+	udp.Forwarder(pxy.localAddr, readCh, sendCh, int(pxy.clientCfg.UDPPacketSize), pxy.cfg.Transport.ProxyProtocolVersion)
 }

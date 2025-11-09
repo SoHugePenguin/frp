@@ -100,6 +100,10 @@ func (v *Muxer) SetRewriteHostFunc(f hostRewriteFunc) *Muxer {
 	return v
 }
 
+func (v *Muxer) Close() error {
+	return v.listener.Close()
+}
+
 type ChooseEndpointFunc func() (string, error)
 
 type CreateConnFunc func(remoteAddr string) (net.Conn, error)
@@ -165,11 +169,7 @@ func (v *Muxer) getListener(name, path, httpUser string) (*Listener, bool) {
 	}
 
 	domainSplit := strings.Split(name, ".")
-	for {
-		if len(domainSplit) < 3 {
-			break
-		}
-
+	for len(domainSplit) >= 3 {
 		domainSplit[0] = "*"
 		name = strings.Join(domainSplit, ".")
 

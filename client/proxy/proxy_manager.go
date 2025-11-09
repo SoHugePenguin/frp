@@ -28,12 +28,14 @@ import (
 	"github.com/SoHugePenguin/frp/pkg/msg"
 	"github.com/SoHugePenguin/frp/pkg/transport"
 	"github.com/SoHugePenguin/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/pkg/vnet"
 )
 
 type Manager struct {
 	proxies            map[string]*Wrapper
 	msgTransporter     transport.MessageTransporter
 	inWorkConnCallback func(*v1.ProxyBaseConfig, net.Conn, *msg.StartWorkConn) bool
+	vnetController     *vnet.Controller
 
 	closed bool
 	mu     sync.RWMutex
@@ -47,10 +49,12 @@ func NewManager(
 	ctx context.Context,
 	clientCfg *v1.ClientCommonConfig,
 	msgTransporter transport.MessageTransporter,
+	vnetController *vnet.Controller,
 ) *Manager {
 	return &Manager{
 		proxies:        make(map[string]*Wrapper),
 		msgTransporter: msgTransporter,
+		vnetController: vnetController,
 		closed:         false,
 		clientCfg:      clientCfg,
 		ctx:            ctx,
@@ -96,7 +100,7 @@ func (pm *Manager) HandleWorkConn(name string, workConn net.Conn, m *msg.StartWo
 	}
 }
 
-func (pm *Manager) HandleEvent(payload interface{}) error {
+func (pm *Manager) HandleEvent(payload any) error {
 	var m msg.Message
 	switch e := payload.(type) {
 	case *event.StartProxyPayload:
@@ -129,9 +133,9 @@ func (pm *Manager) GetProxyStatus(name string) (*WorkingStatus, bool) {
 	return nil, false
 }
 
-func (pm *Manager) UpdateAll(proxyCfgs []v1.ProxyConfigure) {
+func (pm *Manager) UpdateAll(proxyCfgs []v1.ProxyConfigurer) {
 	xl := xlog.FromContextSafe(pm.ctx)
-	proxyCfgsMap := lo.KeyBy(proxyCfgs, func(c v1.ProxyConfigure) string {
+	proxyCfgsMap := lo.KeyBy(proxyCfgs, func(c v1.ProxyConfigurer) string {
 		return c.GetBaseConfig().Name
 	})
 	pm.mu.Lock()
@@ -159,7 +163,7 @@ func (pm *Manager) UpdateAll(proxyCfgs []v1.ProxyConfigure) {
 	for _, cfg := range proxyCfgs {
 		name := cfg.GetBaseConfig().Name
 		if _, ok := pm.proxies[name]; !ok {
-			pxy := NewWrapper(pm.ctx, cfg, pm.clientCfg, pm.HandleEvent, pm.msgTransporter)
+			pxy := NewWrapper(pm.ctx, cfg, pm.clientCfg, pm.HandleEvent, pm.msgTransporter, pm.vnetController)
 			if pm.inWorkConnCallback != nil {
 				pxy.SetInWorkConnCallback(pm.inWorkConnCallback)
 			}

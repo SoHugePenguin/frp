@@ -68,12 +68,15 @@ func init() {
 	}
 }
 
-func NewProxyCommand(name string, c v1.ProxyConfigure, clientCfg *v1.ClientCommonConfig) *cobra.Command {
+func NewProxyCommand(name string, c v1.ProxyConfigurer, clientCfg *v1.ClientCommonConfig) *cobra.Command {
 	return &cobra.Command{
 		Use:   name,
 		Short: fmt.Sprintf("Run frpc with a single %s proxy", name),
 		Run: func(cmd *cobra.Command, args []string) {
-			clientCfg.Complete()
+			if err := clientCfg.Complete(); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 			if _, err := validation.ValidateClientCommonConfig(clientCfg); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -85,7 +88,7 @@ func NewProxyCommand(name string, c v1.ProxyConfigure, clientCfg *v1.ClientCommo
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			err := startService(clientCfg, []v1.ProxyConfigure{c}, nil, "")
+			err := startService(clientCfg, []v1.ProxyConfigurer{c}, nil, "")
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -99,7 +102,10 @@ func NewVisitorCommand(name string, c v1.VisitorConfigurer, clientCfg *v1.Client
 		Use:   "visitor",
 		Short: fmt.Sprintf("Run frpc with a single %s visitor", name),
 		Run: func(cmd *cobra.Command, args []string) {
-			clientCfg.Complete()
+			if err := clientCfg.Complete(); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 			if _, err := validation.ValidateClientCommonConfig(clientCfg); err != nil {
 				fmt.Println(err)
 				os.Exit(1)

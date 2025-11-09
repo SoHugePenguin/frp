@@ -42,7 +42,7 @@ const (
 	TypeRealTimeMsg        = '8'
 )
 
-var msgTypeMap = map[byte]interface{}{
+var msgTypeMap = map[byte]any{
 	TypeLogin:              Login{},
 	TypeLoginResp:          LoginResp{},
 	TypeNewProxy:           NewProxy{},

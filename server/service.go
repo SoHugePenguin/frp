@@ -19,14 +19,13 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/SoHugePenguin/frp/server/models"
-	"io"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
+	"github.com/SoHugePenguin/frp/server/models"
 	"github.com/SoHugePenguin/golib/crypto"
 	"github.com/SoHugePenguin/golib/net/mux"
 	fmux "github.com/hashicorp/yamux"
@@ -267,7 +266,7 @@ func NewService(cfg *v1.ServerConfig) (*Service, error) {
 	}
 
 	if cfg.SSHTunnelGateway.BindPort > 0 {
-		sshGateway, err := ssh.NewGateway(cfg.SSHTunnelGateway, cfg.ProxyBindAddr, svr.sshTunnelListener)
+		sshGateway, err := ssh.NewGateway(cfg.SSHTunnelGateway, cfg.BindAddr, svr.sshTunnelListener)
 		if err != nil {
 			return nil, fmt.Errorf("create ssh gateway error: %v", err)
 		}
@@ -328,6 +327,9 @@ func NewService(cfg *v1.ServerConfig) (*Service, error) {
 		if err != nil {
 			return nil, fmt.Errorf("create vhost httpsMuxer error, %v", err)
 		}
+
+		// Init HTTPS group controller after HTTPSMuxer is created
+		svr.rc.HTTPSGroupCtl = group.NewHTTPSGroupController(svr.rc.VhostHTTPSMuxer)
 	}
 
 	// frp tls listener
@@ -408,26 +410,32 @@ func (svr *Service) Run(ctx context.Context) {
 
 func (svr *Service) Close() error {
 	if svr.kcpListener != nil {
-		_ = svr.kcpListener.Close()
-		svr.kcpListener = nil
+		svr.kcpListener.Close()
 	}
 	if svr.quicListener != nil {
-		_ = svr.quicListener.Close()
-		svr.quicListener = nil
+		svr.quicListener.Close()
 	}
 	if svr.websocketListener != nil {
-		_ = svr.websocketListener.Close()
-		svr.websocketListener = nil
+		svr.websocketListener.Close()
 	}
 	if svr.tlsListener != nil {
-		_ = svr.tlsListener.Close()
-		svr.tlsConfig = nil
+		svr.tlsListener.Close()
+	}
+	if svr.sshTunnelListener != nil {
+		svr.sshTunnelListener.Close()
 	}
 	if svr.listener != nil {
-		_ = svr.listener.Close()
-		svr.listener = nil
+		svr.listener.Close()
 	}
-	_ = svr.ctlManager.Close()
+	if svr.webServer != nil {
+		svr.webServer.Close()
+	}
+	if svr.sshTunnelGateway != nil {
+		svr.sshTunnelGateway.Close()
+	}
+	svr.rc.Close()
+	svr.muxer.Close()
+	svr.ctlManager.Close()
 	if svr.cancel != nil {
 		svr.cancel()
 	}
@@ -442,7 +450,7 @@ func (svr *Service) handleConnection(ctx context.Context, conn net.Conn, interna
 	)
 	_ = conn.SetReadDeadline(time.Now().Add(connReadTimeout))
 	if rawMsg, err = msg.ReadMsg(conn); err != nil {
-		log.Tracef("Failed to read message: %v", err)
+		log.Tracef("failed to read message: %v", err)
 		_ = conn.Close()
 		return
 	}
@@ -530,7 +538,7 @@ func (svr *Service) handleConnection(ctx context.Context, conn net.Conn, interna
 			})
 		}
 	default:
-		log.Warnf("Error message type for the new connection [%s]", conn.RemoteAddr().String())
+		log.Warnf("error message type for the new connection [%s]", conn.RemoteAddr().String())
 		_ = conn.Close()
 	}
 }
@@ -543,7 +551,7 @@ func (svr *Service) HandleListener(l net.Listener, internal bool) {
 	for {
 		c, err := l.Accept()
 		if err != nil {
-			log.Warnf("Listener for incoming connections from client closed")
+			log.Warnf("listener for incoming connections from client closed")
 			return
 		}
 		// inject xlog object into net.Conn context
@@ -559,7 +567,7 @@ func (svr *Service) HandleListener(l net.Listener, internal bool) {
 			var isTLS, custom bool
 			c, isTLS, custom, err = netpkg.CheckAndEnableTLSServerConnWithTimeout(c, svr.tlsConfig, forceTLS, connReadTimeout)
 			if err != nil {
-				log.Warnf("CheckAndEnableTLSServerConnWithTimeout error: %v", err)
+				log.Warnf("checkAndEnableTLSServerConnWithTimeout error: %v", err)
 				_ = originConn.Close()
 				continue
 			}
@@ -571,11 +579,12 @@ func (svr *Service) HandleListener(l net.Listener, internal bool) {
 			if lo.FromPtr(svr.cfg.Transport.TCPMux) && !internal {
 				fmuxCfg := fmux.DefaultConfig()
 				fmuxCfg.KeepAliveInterval = time.Duration(svr.cfg.Transport.TCPMuxKeepaliveInterval) * time.Second
-				fmuxCfg.LogOutput = io.Discard
+				// Use trace level for yamux logs
+				fmuxCfg.LogOutput = xlog.NewTraceWriter(xlog.FromContextSafe(ctx))
 				fmuxCfg.MaxStreamWindowSize = 6 * 1024 * 1024
 				session, err := fmux.Server(frpConn, fmuxCfg)
 				if err != nil {
-					log.Warnf("Failed to create mux connection: %v", err)
+					log.Warnf("failed to create mux connection: %v", err)
 					_ = frpConn.Close()
 					return
 				}
@@ -583,7 +592,7 @@ func (svr *Service) HandleListener(l net.Listener, internal bool) {
 				for {
 					stream, err := session.AcceptStream()
 					if err != nil {
-						log.Debugf("Accept new mux stream error: %v", err)
+						log.Debugf("accept new mux stream error: %v", err)
 						_ = session.Close()
 						return
 					}
@@ -637,15 +646,15 @@ func (svr *Service) HandleQUICListener(l *quic.Listener) {
 	for {
 		c, err := l.Accept(context.Background())
 		if err != nil {
-			log.Warnf("QUICListener for incoming connections from client closed")
+			log.Warnf("quic listener for incoming connections from client closed")
 			return
 		}
 		// Start a new goroutine to handle connection.
-		go func(ctx context.Context, frpConn quic.Connection) {
+		go func(ctx context.Context, frpConn *quic.Conn) {
 			for {
 				stream, err := frpConn.AcceptStream(context.Background())
 				if err != nil {
-					log.Debugf("Accept new quic mux stream error: %v", err)
+					log.Debugf("accept new quic mux stream error: %v", err)
 					_ = frpConn.CloseWithError(0, "")
 					return
 				}
@@ -749,7 +758,7 @@ func (svr *Service) RegisterWorkConn(workConn net.Conn, newMsg *msg.NewWorkConn)
 	xl := netpkg.NewLogFromConn(workConn)
 	ctl, exist := svr.ctlManager.GetByID(newMsg.RunID)
 	if !exist {
-		xl.Warnf("No client control found for run id [%s]", newMsg.RunID)
+		xl.Warnf("no client control found for run id [%s]", newMsg.RunID)
 		return fmt.Errorf("no client control found for run id [%s]", newMsg.RunID)
 	}
 	// server plugin hook

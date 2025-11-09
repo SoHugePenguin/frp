@@ -39,6 +39,7 @@ import (
 	"github.com/SoHugePenguin/frp/pkg/util/version"
 	"github.com/SoHugePenguin/frp/pkg/util/wait"
 	"github.com/SoHugePenguin/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/pkg/vnet"
 )
 
 func init() {
@@ -62,7 +63,7 @@ func (e cancelErr) Error() string {
 // ServiceOptions contains options for creating a new client service.
 type ServiceOptions struct {
 	Common      *v1.ClientCommonConfig
-	ProxyCfgs   []v1.ProxyConfigure
+	ProxyCfgs   []v1.ProxyConfigurer
 	VisitorCfgs []v1.VisitorConfigurer
 
 	// ConfigFilePath is the path to the configuration file used to initialize.
@@ -89,13 +90,16 @@ type ServiceOptions struct {
 }
 
 // setServiceOptionsDefault sets the default values for ServiceOptions.
-func setServiceOptionsDefault(options *ServiceOptions) {
+func setServiceOptionsDefault(options *ServiceOptions) error {
 	if options.Common != nil {
-		options.Common.Complete()
+		if err := options.Common.Complete(); err != nil {
+			return err
+		}
 	}
 	if options.ConnectorCreator == nil {
 		options.ConnectorCreator = NewConnector
 	}
+	return nil
 }
 
 // Service is the client service that connects to frps and provides proxy services.
@@ -112,9 +116,11 @@ type Service struct {
 	// web server for admin UI and apis
 	webServer *httppkg.Server
 
+	vnetController *vnet.Controller
+
 	cfgMu       sync.RWMutex
 	common      *v1.ClientCommonConfig
-	proxyCfgs   []v1.ProxyConfigure
+	proxyCfgs   []v1.ProxyConfigurer
 	visitorCfgs []v1.VisitorConfigurer
 	clientSpec  *msg.ClientSpec
 
@@ -133,7 +139,9 @@ type Service struct {
 }
 
 func NewService(options ServiceOptions) (*Service, error) {
-	setServiceOptionsDefault(&options)
+	if err := setServiceOptionsDefault(&options); err != nil {
+		return nil, err
+	}
 
 	var webServer *httppkg.Server
 	if options.Common.WebServer.Port > 0 {
@@ -143,9 +151,15 @@ func NewService(options ServiceOptions) (*Service, error) {
 		}
 		webServer = ws
 	}
+
+	authSetter, err := auth.NewAuthSetter(options.Common.Auth)
+	if err != nil {
+		return nil, err
+	}
+
 	s := &Service{
 		ctx:              context.Background(),
-		authSetter:       auth.NewAuthSetter(options.Common.Auth),
+		authSetter:       authSetter,
 		webServer:        webServer,
 		common:           options.Common,
 		configFilePath:   options.ConfigFilePath,
@@ -158,6 +172,9 @@ func NewService(options ServiceOptions) (*Service, error) {
 	if webServer != nil {
 		webServer.RouteRegister(s.registerRouteHandlers)
 	}
+	if options.Common.VirtualNet.Address != "" {
+		s.vnetController = vnet.NewController(options.Common.VirtualNet)
+	}
 	return s, nil
 }
 
@@ -169,6 +186,19 @@ func (svr *Service) Run(ctx context.Context) error {
 	// set custom DNSServer
 	if svr.common.DNSServer != "" {
 		netpkg.SetDefaultDNSAddress(svr.common.DNSServer)
+	}
+
+	if svr.vnetController != nil {
+		if err := svr.vnetController.Init(); err != nil {
+			log.Errorf("init virtual network controller error: %v", err)
+			return err
+		}
+		go func() {
+			log.Infof("virtual network controller start...")
+			if err := svr.vnetController.Run(); err != nil {
+				log.Warnf("virtual network controller exit with error: %v", err)
+			}
+		}()
 	}
 
 	if svr.webServer != nil {
@@ -315,22 +345,22 @@ func (svr *Service) loopLoginUntilSuccess(maxInterval time.Duration, firstLoginE
 		proxyCfgs := svr.proxyCfgs
 		visitorCfgs := svr.visitorCfgs
 		svr.cfgMu.RUnlock()
-		connEncrypted := true
-		if svr.clientSpec != nil && svr.clientSpec.Type == "ssh-tunnel" {
-			connEncrypted = false
-		}
+
+		connEncrypted := svr.clientSpec == nil || svr.clientSpec.Type != "ssh-tunnel"
+
 		sessionCtx := &SessionContext{
-			Common:        svr.common,
-			RunID:         svr.runID,
-			Conn:          conn,
-			ConnEncrypted: connEncrypted,
-			AuthSetter:    svr.authSetter,
-			Connector:     connector,
+			Common:         svr.common,
+			RunID:          svr.runID,
+			Conn:           conn,
+			ConnEncrypted:  connEncrypted,
+			AuthSetter:     svr.authSetter,
+			Connector:      connector,
+			VnetController: svr.vnetController,
 		}
 		ctl, err := NewControl(svr.ctx, sessionCtx)
 		if err != nil {
 			_ = conn.Close()
-			xl.Errorf("NewControl error: %v", err)
+			xl.Errorf("new control error: %v", err)
 			return false, err
 		}
 		ctl.SetInWorkConnCallback(svr.handleWorkConnCb)
@@ -463,7 +493,7 @@ func (svr *Service) loginMsgServer() {
 
 }
 
-func (svr *Service) UpdateAllConfigure(proxyCfgs []v1.ProxyConfigure, visitorCfgs []v1.VisitorConfigurer) error {
+func (svr *Service) UpdateAllConfigure(proxyCfgs []v1.ProxyConfigurer, visitorCfgs []v1.VisitorConfigurer) error {
 	svr.cfgMu.Lock()
 	svr.proxyCfgs = proxyCfgs
 	svr.visitorCfgs = visitorCfgs
@@ -494,6 +524,10 @@ func (svr *Service) stop() {
 	if svr.ctl != nil {
 		_ = svr.ctl.GracefulClose(svr.gracefulShutdownDuration)
 		svr.ctl = nil
+	}
+	if svr.webServer != nil {
+		svr.webServer.Close()
+		svr.webServer = nil
 	}
 }
 

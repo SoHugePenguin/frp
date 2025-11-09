@@ -35,6 +35,9 @@ type ResourceController struct {
 	// HTTP Group Controller
 	HTTPGroupCtl *group.HTTPGroupController
 
+	// HTTPS Group Controller
+	HTTPSGroupCtl *group.HTTPSGroupController
+
 	// TCP Mux Group Controller
 	TCPMuxGroupCtl *group.TCPMuxGroupCtl
 
@@ -58,4 +61,14 @@ type ResourceController struct {
 
 	// All server manager plugin
 	PluginManager *plugin.Manager
+}
+
+func (rc *ResourceController) Close() error {
+	if rc.VhostHTTPSMuxer != nil {
+		rc.VhostHTTPSMuxer.Close()
+	}
+	if rc.TCPMuxHTTPConnectMuxer != nil {
+		rc.TCPMuxHTTPConnectMuxer.Close()
+	}
+	return nil
 }

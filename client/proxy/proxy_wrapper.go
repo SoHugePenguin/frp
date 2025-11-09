@@ -31,6 +31,7 @@ import (
 	"github.com/SoHugePenguin/frp/pkg/msg"
 	"github.com/SoHugePenguin/frp/pkg/transport"
 	"github.com/SoHugePenguin/frp/pkg/util/xlog"
+	"github.com/SoHugePenguin/frp/pkg/vnet"
 )
 
 const (
@@ -49,11 +50,11 @@ var (
 )
 
 type WorkingStatus struct {
-	Name  string            `json:"name"`
-	Type  string            `json:"type"`
-	Phase string            `json:"status"`
-	Err   string            `json:"err"`
-	Cfg   v1.ProxyConfigure `json:"cfg"`
+	Name  string             `json:"name"`
+	Type  string             `json:"type"`
+	Phase string             `json:"status"`
+	Err   string             `json:"err"`
+	Cfg   v1.ProxyConfigurer `json:"cfg"`
 
 	// Got from server.
 	RemoteAddr string `json:"remote_addr"`
@@ -73,6 +74,8 @@ type Wrapper struct {
 	handler event.Handler
 
 	msgTransporter transport.MessageTransporter
+	// vnet controller
+	vnetController *vnet.Controller
 
 	health           uint32
 	lastSendStartMsg time.Time
@@ -87,10 +90,11 @@ type Wrapper struct {
 
 func NewWrapper(
 	ctx context.Context,
-	cfg v1.ProxyConfigure,
+	cfg v1.ProxyConfigurer,
 	clientCfg *v1.ClientCommonConfig,
 	eventHandler event.Handler,
 	msgTransporter transport.MessageTransporter,
+	vnetController *vnet.Controller,
 ) *Wrapper {
 	baseInfo := cfg.GetBaseConfig()
 	xl := xlog.FromContextSafe(ctx).Spawn().AppendPrefix(baseInfo.Name)
@@ -105,6 +109,7 @@ func NewWrapper(
 		healthNotifyCh: make(chan struct{}),
 		handler:        eventHandler,
 		msgTransporter: msgTransporter,
+		vnetController: vnetController,
 		xl:             xl,
 		ctx:            xlog.NewContext(ctx, xl),
 	}
@@ -117,7 +122,7 @@ func NewWrapper(
 		xl.Tracef("enable health check monitor")
 	}
 
-	pw.pxy = NewProxy(pw.ctx, pw.Cfg, clientCfg, pw.msgTransporter)
+	pw.pxy = NewProxy(pw.ctx, pw.Cfg, clientCfg, pw.msgTransporter, pw.vnetController)
 	return pw
 }
 

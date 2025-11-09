@@ -14,13 +14,12 @@
 
 //go:build !frps
 
-package plugin
+package client
 
 import (
 	"context"
 	"io"
 	"log"
-	"net"
 
 	gosocks5 "github.com/armon/go-socks5"
 
@@ -36,7 +35,7 @@ type Socks5Plugin struct {
 	Server *gosocks5.Server
 }
 
-func NewSocks5Plugin(options v1.ClientPluginOptions) (p Plugin, err error) {
+func NewSocks5Plugin(_ PluginContext, options v1.ClientPluginOptions) (p Plugin, err error) {
 	opts := options.(*v1.Socks5PluginOptions)
 
 	cfg := &gosocks5.Config{
@@ -51,11 +50,11 @@ func NewSocks5Plugin(options v1.ClientPluginOptions) (p Plugin, err error) {
 	return
 }
 
-func (sp *Socks5Plugin) Handle(_ context.Context, conn io.ReadWriteCloser, realConn net.Conn, _ *ExtraInfo) {
+func (sp *Socks5Plugin) Handle(_ context.Context, connInfo *ConnectionInfo) {
 	defer func() {
-		_ = conn.Close()
+		_ = connInfo.Conn.Close()
 	}()
-	wrapConn := netpkg.WrapReadWriteCloserToConn(conn, realConn)
+	wrapConn := netpkg.WrapReadWriteCloserToConn(connInfo.Conn, connInfo.UnderlyingConn)
 	_ = sp.Server.ServeConn(wrapConn)
 }
 

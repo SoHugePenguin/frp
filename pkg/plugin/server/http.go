@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package plugin
+package server
 
 import (
 	"bytes"
@@ -72,7 +72,7 @@ func (p *httpPlugin) IsSupport(op string) bool {
 	return false
 }
 
-func (p *httpPlugin) Handle(ctx context.Context, op string, content interface{}) (*Response, interface{}, error) {
+func (p *httpPlugin) Handle(ctx context.Context, op string, content any) (*Response, any, error) {
 	r := &Request{
 		Version: APIVersion,
 		Op:      op,

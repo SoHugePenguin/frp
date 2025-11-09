@@ -226,7 +226,7 @@ func (ctl *Control) Close() error {
 
 func (ctl *Control) Replaced(newCtl *Control) {
 	xl := ctl.xl
-	xl.Infof("Replaced by client [%s]", newCtl.runID)
+	xl.Infof("replaced by client [%s]", newCtl.runID)
 	ctl.runID = ""
 	_ = ctl.conn.Close()
 }
@@ -512,7 +512,7 @@ func (ctl *Control) handleCloseProxy(m msg.Message) {
 }
 
 func (ctl *Control) RegisterProxy(pxyMsg *msg.NewProxy, myProxy mysql.Proxy) (remoteAddr string, err error) {
-	var pxyConf v1.ProxyConfigure
+	var pxyConf v1.ProxyConfigurer
 	// Load configures from NewProxy message and validate.
 	pxyConf, err = config.NewProxyConfigurerFromMsg(pxyMsg, ctl.serverCfg)
 	if err != nil {

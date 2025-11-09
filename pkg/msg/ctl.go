@@ -61,7 +61,7 @@ func ReadMsgInto(c io.Reader, msg Message) (err error) {
 	return newMsgCtl().ReadMsgInto(c, msg)
 }
 
-func WriteMsg(c io.Writer, msg interface{}) (err error) {
+func WriteMsg(c io.Writer, msg any) (err error) {
 	return newMsgCtl().WriteMsg(c, msg)
 }
 

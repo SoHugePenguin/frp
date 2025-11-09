@@ -52,7 +52,7 @@ type Proxy interface {
 	Context() context.Context
 	Run() (remoteAddr string, err error)
 	GetName() string
-	GetConfigure() v1.ProxyConfigure
+	GetConfigure() v1.ProxyConfigurer
 	GetWorkConnFromPool(src, dst net.Addr) (workConn net.Conn, err error)
 	GetUsedPortsNum() int
 	GetResourceController() *controller.ResourceController
@@ -74,7 +74,7 @@ type BaseProxy struct {
 	limiter       *rate.Limiter
 	userInfo      plugin.UserInfo
 	loginMsg      *msg.Login
-	configure     v1.ProxyConfigure
+	configure     v1.ProxyConfigurer
 
 	mu  sync.RWMutex
 	xl  *xlog.Logger
@@ -116,7 +116,7 @@ func (pxy *BaseProxy) GetLimiter() *rate.Limiter {
 	return pxy.limiter
 }
 
-func (pxy *BaseProxy) GetConfigure() v1.ProxyConfigure {
+func (pxy *BaseProxy) GetConfigure() v1.ProxyConfigurer {
 	return pxy.configure
 }
 
@@ -399,7 +399,7 @@ type Options struct {
 	PoolCount          int
 	ResourceController *controller.ResourceController
 	GetWorkConnFn      GetWorkConnFn
-	Configure          v1.ProxyConfigure
+	Configure          v1.ProxyConfigurer
 	ServerCfg          *v1.ServerConfig
 	MaxInRate          int64
 	MaxOutRate         int64

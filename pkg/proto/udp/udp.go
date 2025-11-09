@@ -24,6 +24,7 @@ import (
 	"github.com/SoHugePenguin/golib/pool"
 
 	"github.com/SoHugePenguin/frp/pkg/msg"
+	netpkg "github.com/SoHugePenguin/frp/pkg/util/net"
 )
 
 func NewUDPPacket(buf []byte, laddr, raddr *net.UDPAddr) *msg.UDPPacket {
@@ -68,7 +69,7 @@ func ForwardUserConn(udpConn *net.UDPConn, readCh <-chan *msg.UDPPacket, sendCh 
 	}
 }
 
-func Forwarder(dstAddr *net.UDPAddr, readCh <-chan *msg.UDPPacket, sendCh chan<- msg.Message, bufSize int) {
+func Forwarder(dstAddr *net.UDPAddr, readCh <-chan *msg.UDPPacket, sendCh chan<- msg.Message, bufSize int, proxyProtocolVersion string) {
 	var mu sync.RWMutex
 	udpConnMap := make(map[string]*net.UDPConn)
 
@@ -106,6 +107,10 @@ func Forwarder(dstAddr *net.UDPAddr, readCh <-chan *msg.UDPPacket, sendCh chan<-
 	go func() {
 		for udpMsg := range readCh {
 			buf, err := GetContent(udpMsg)
+			if err != nil {
+				continue
+			}
+
 			mu.Lock()
 			udpConn, ok := udpConnMap[udpMsg.RemoteAddr.String()]
 			if !ok {
@@ -117,6 +122,18 @@ func Forwarder(dstAddr *net.UDPAddr, readCh <-chan *msg.UDPPacket, sendCh chan<-
 				udpConnMap[udpMsg.RemoteAddr.String()] = udpConn
 			}
 			mu.Unlock()
+
+			// Add proxy protocol header if configured
+			if proxyProtocolVersion != "" && udpMsg.RemoteAddr != nil {
+				ppBuf, err := netpkg.BuildProxyProtocolHeader(udpMsg.RemoteAddr, dstAddr, proxyProtocolVersion)
+				if err == nil {
+					// Prepend proxy protocol header to the UDP payload
+					finalBuf := make([]byte, len(ppBuf)+len(buf))
+					copy(finalBuf, ppBuf)
+					copy(finalBuf[len(ppBuf):], buf)
+					buf = finalBuf
+				}
+			}
 
 			_, err = udpConn.Write(buf)
 			if err != nil {

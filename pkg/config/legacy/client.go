@@ -170,7 +170,7 @@ type ClientCommonConf struct {
 }
 
 // Supported sources including: string(file path), []byte, Reader interface.
-func UnmarshalClientConfFromIni(source interface{}) (ClientCommonConf, error) {
+func UnmarshalClientConfFromIni(source any) (ClientCommonConf, error) {
 	f, err := ini.LoadSources(ini.LoadOptions{
 		Insensitive:         false,
 		InsensitiveSections: false,
@@ -194,7 +194,7 @@ func UnmarshalClientConfFromIni(source interface{}) (ClientCommonConf, error) {
 	}
 
 	common.Metas = GetMapWithoutPrefix(s.KeysHash(), "meta_")
-	common.ClientConfig.OidcAdditionalEndpointParams = GetMapWithoutPrefix(s.KeysHash(), "oidc_additional_")
+	common.OidcAdditionalEndpointParams = GetMapWithoutPrefix(s.KeysHash(), "oidc_additional_")
 
 	return common, nil
 }
@@ -203,7 +203,7 @@ func UnmarshalClientConfFromIni(source interface{}) (ClientCommonConf, error) {
 // otherwise just start proxies in startProxy map
 func LoadAllProxyConfsFromIni(
 	prefix string,
-	source interface{},
+	source any,
 	start []string,
 ) (map[string]ProxyConf, map[string]VisitorConf, error) {
 	f, err := ini.LoadSources(ini.LoadOptions{
@@ -229,10 +229,7 @@ func LoadAllProxyConfsFromIni(
 		startProxy[s] = struct{}{}
 	}
 
-	startAll := true
-	if len(startProxy) > 0 {
-		startAll = false
-	}
+	startAll := len(startProxy) == 0
 
 	// Build template sections from range section And append to ini.File.
 	rangeSections := make([]*ini.Section, 0)

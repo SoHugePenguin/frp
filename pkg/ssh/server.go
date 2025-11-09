@@ -105,7 +105,10 @@ func (s *TunnelServer) Run() error {
 		s.writeToClient(err.Error())
 		return fmt.Errorf("parse flags from ssh client error: %v", err)
 	}
-	clientCfg.Complete()
+	if err := clientCfg.Complete(); err != nil {
+		s.writeToClient(fmt.Sprintf("failed to complete client config: %v", err))
+		return fmt.Errorf("complete client config error: %v", err)
+	}
 	if sshConn.Permissions != nil {
 		clientCfg.User = util.EmptyOr(sshConn.Permissions.Extensions["user"], clientCfg.User)
 	}
@@ -165,7 +168,7 @@ func (s *TunnelServer) Run() error {
 		})
 	}()
 
-	s.vc.UpdateProxyConfigurer([]v1.ProxyConfigure{pc})
+	s.vc.UpdateProxyConfigurer([]v1.ProxyConfigurer{pc})
 
 	if ps, err := s.waitProxyStatusReady(pc.GetBaseConfig().Name, time.Second); err != nil {
 		s.writeToClient(err.Error())
@@ -249,7 +252,7 @@ func (s *TunnelServer) waitForwardAddrAndExtraPayload(
 	return addr, extraPayload, nil
 }
 
-func (s *TunnelServer) parseClientAndProxyConfigurer(_ *tcpipForward, extraPayload string) (*v1.ClientCommonConfig, v1.ProxyConfigure, string, error) {
+func (s *TunnelServer) parseClientAndProxyConfigurer(_ *tcpipForward, extraPayload string) (*v1.ClientCommonConfig, v1.ProxyConfigurer, string, error) {
 	helpMessage := ""
 	cmd := &cobra.Command{
 		Use:   "ssh v0@{address} [command]",

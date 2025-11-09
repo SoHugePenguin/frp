@@ -15,11 +15,15 @@
 package v1
 
 import (
+	"context"
 	"fmt"
-	"github.com/SoHugePenguin/frp/pkg/config/types"
-	ctl "github.com/SoHugePenguin/frp/pkg/msg"
-	"github.com/SoHugePenguin/frp/pkg/util/util"
+
 	"github.com/samber/lo"
+
+	"github.com/SoHugePenguin/frp/pkg/config/types"
+	"github.com/SoHugePenguin/frp/pkg/util/util"
+
+	ctl "github.com/SoHugePenguin/frp/pkg/msg"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -115,8 +119,10 @@ type ServerConfig struct {
 	RealtimeMsgPort int `json:"realtimeMsgPort,omitempty"`
 }
 
-func (c *ServerConfig) Complete() {
-	c.Auth.Complete()
+func (c *ServerConfig) Complete() error {
+	if err := c.Auth.Complete(); err != nil {
+		return err
+	}
 	c.Log.Complete()
 	c.Transport.Complete()
 	c.WebServer.Complete()
@@ -149,6 +155,7 @@ func (c *ServerConfig) Complete() {
 		os.Exit(0)
 	}
 	// penguin add
+	return nil
 }
 
 func (c *ServerConfig) connectMysql() (*gorm.DB, error) {
@@ -174,11 +181,24 @@ type AuthServerConfig struct {
 	Method           AuthMethod           `json:"method,omitempty"`
 	AdditionalScopes []AuthScope          `json:"additionalScopes,omitempty"`
 	Token            string               `json:"token,omitempty"`
+	TokenSource      *ValueSource         `json:"tokenSource,omitempty"`
 	OIDC             AuthOIDCServerConfig `json:"oidc,omitempty"`
 }
 
-func (c *AuthServerConfig) Complete() {
+func (c *AuthServerConfig) Complete() error {
 	c.Method = util.EmptyOr(c.Method, "token")
+
+	// Resolve tokenSource during configuration loading
+	if c.Method == AuthMethodToken && c.TokenSource != nil {
+		token, err := c.TokenSource.Resolve(context.Background())
+		if err != nil {
+			return fmt.Errorf("failed to resolve auth.tokenSource: %w", err)
+		}
+		// Move the resolved token to the Token field and clear TokenSource
+		c.Token = token
+		c.TokenSource = nil
+	}
+	return nil
 }
 
 type AuthOIDCServerConfig struct {
